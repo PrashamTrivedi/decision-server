@@ -8,7 +8,8 @@ export default defineConfig(({ isPreview }) => ({
     entrypoint: "src/index.ts",
     // Issues groups console.error(Error) calls, uncaught exceptions and 5xx; see src/AGENTS.md for what we log there.
     observability: { enabled: true, issues: { enabled: true } },
-    // Preview URLs for non-main branches (Workers Builds Previews).
+    // Production is served only on the custom domain; branch Previews get <slug>-decision-server.dev-286.workers.dev.
+    workersDev: false,
     previewUrls: true,
     // Previews reject `domains`; they also skip the purge cron so only production runs it.
     ...(isPreview ? {} : {
