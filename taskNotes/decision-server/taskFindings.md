@@ -27,7 +27,7 @@ Build `decisions.prashamhtrivedi.app`: a Cloudflare Worker that answers Jev-form
 
 ## Complexity and the reason behind it
 
-**3/5.** It's a greenfield Worker that follows conventions you already use in `memory-server` (Hono, `createMcpHandler`, D1 migrations, vitest, `wrangler.jsonc`). Because Clef speaks Jev's schema, the hardest part of the design is gone, and using the quota error as the budget signal removes the meter. What's left with real moving parts: a deadline-bounded fallback chain and a live shadow comparison. Verification needs live Workers AI and Jev calls plus a ledger replay, and that's where most of the effort goes.
+**3/5.** It's a greenfield Worker that follows conventions you already use in `memory-server` (Hono, `createMcpHandler`, D1 migrations, vitest, `cloudflare.config.ts` + `cf` CLI). Because Clef speaks Jev's schema, the hardest part of the design is gone, and using the quota error as the budget signal removes the meter. What's left with real moving parts: a deadline-bounded fallback chain and a live shadow comparison. Verification needs live Workers AI and Jev calls plus a ledger replay, and that's where most of the effort goes.
 
 ## Architectural changes required
 
@@ -98,7 +98,7 @@ None (no UI in v1).
 ## Validation
 
 - **Unit (vitest):** router table cases (every ledger type, forced model, media, quota-hit flag, unknown, either-escalation), schema parsing, neuron math, deadline arithmetic, fallback chain with stubbed AI and Jev (Clef error, Clef timeout, quota error, Jev error, both fail → 502, deadline → 504).
-- **Integration (`wrangler dev` + `unstable_dev` or `@cloudflare/vitest-pool-workers`):** auth 401/200 on every route; the quota flag resets at 00:00 UTC; D1 log row per call; purge job.
+- **Integration (`cf dev --local` or fakes):** auth 401/200 on every route; the quota flag resets at 00:00 UTC; D1 log row per call; purge job.
 - **Live, after deploy:**
   - `curl /health` → 200.
   - Setup-prompt smoke calls: `ls -la` returns low `dangerous` and `rm -rf ~` returns high, both with `servedBy` set.
