@@ -4,6 +4,7 @@ import type { Deps } from './decide'
 import { DecisionError } from './errors'
 import type { Env } from './env'
 import { budgetSnapshot, listCalls, parseSince, statsSnapshot } from './log'
+import { handleMcp } from './mcp'
 import { parseMeta, requestSchema } from './schema'
 import { runDecision, type Waiter } from './service'
 
@@ -26,6 +27,10 @@ export function createApp(opts: AppOptions = {}) {
   app.get('/health', (c) => c.json({ ok: true, version: c.env.VERSION ?? 'dev' }))
 
   app.use('/v1/*', bearerAuth)
+  app.use('/mcp', bearerAuth)
+  app.use('/mcp/*', bearerAuth)
+  app.all('/mcp', (c) => handleMcp(c.env, c.req.raw, waiterFor(c), opts.deps))
+  app.all('/mcp/*', (c) => handleMcp(c.env, c.req.raw, waiterFor(c), opts.deps))
 
   app.post('/v1/systemone', async (c) => {
     const meta = parseMeta(c.req.raw.headers)
