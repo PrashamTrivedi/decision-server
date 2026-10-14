@@ -18,9 +18,10 @@ function seed() {
 }
 
 describe('GET /visualize', () => {
-  it('is public HTML with the shell and no data', async () => {
+  it('is HTML with the shell and no data (needs auth)', async () => {
     const s = seed()
-    const r = await s.app.request('/visualize', {}, s.env)
+    expect((await s.app.request('/visualize', {}, s.env)).status).toBe(401)
+    const r = await s.app.request('/visualize', { headers: auth }, s.env)
     expect(r.status).toBe(200)
     expect(r.headers.get('content-type')).toContain('text/html')
     const t = await r.text()
@@ -28,6 +29,8 @@ describe('GET /visualize', () => {
     expect(t).toContain('/v1/calls')
     expect(t).not.toContain('SECRET-STATE')
     expect(t).not.toContain('test-token')
+    expect(t).not.toContain('sessionStorage')
+    expect(t).toContain("credentials: 'same-origin'")
     expect(t).not.toContain('/*STYLE*/')
     expect(t).not.toContain('/*SCRIPT*/')
     expect(t).not.toMatch(/\.innerHTML\s*=/)

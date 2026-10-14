@@ -3,9 +3,6 @@
   // All payload data is rendered with textContent / SVG attributes only. Never innerHTML.
   var $ = function (id) { return document.getElementById(id) }
   var TIERS = ['flash', 'clef', 'omni', 'jev', 'unknown']
-  var KEY = 'decisions-token'
-  var token = null
-  try { token = sessionStorage.getItem(KEY) } catch (e) {}
   var timer = null
   var feed = [] // newest first
   var next = null
@@ -27,21 +24,15 @@
   function pill(t) { var s = el('span', 'pill t-' + (TIERS.indexOf(t) >= 0 ? t : 'unknown'), t || 'none'); return s }
   function fmtTime(ts) { var d = new Date(ts); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString() }
 
+  // Auth is the Cloudflare Access cookie, sent same-origin. No tokens live in this page.
   function api(path) {
-    return fetch(path, { headers: { Authorization: 'Bearer ' + token } }).then(function (r) {
-      if (r.status === 401) { signOut('Token rejected'); throw new Error('unauthorized') }
+    return fetch(path, { credentials: 'same-origin' }).then(function (r) {
+      if (r.status === 401 || r.status === 403 || r.redirected) { stop(); $('status').textContent = 'session expired: reload to log in again'; throw new Error('unauthorized') }
       if (!r.ok) throw new Error('HTTP ' + r.status)
       return r.json()
     })
   }
 
-  function signOut(msg) {
-    token = null
-    try { sessionStorage.removeItem(KEY) } catch (e) {}
-    stop()
-    $('app').hidden = true; $('login').hidden = false
-    $('loginerr').textContent = msg || ''
-  }
   function stop() { if (timer) { clearInterval(timer); timer = null } }
 
   function barRows(host, entries, opts) {
@@ -202,28 +193,20 @@
       api('/v1/budget').then(renderBudget),
       loadFeed(),
     ]).then(function () { $('status').textContent = 'updated ' + new Date().toLocaleTimeString() })
-      .catch(function (e) { if (token) $('status').textContent = 'error: ' + e.message })
+      .catch(function (e) { if (e.message !== 'unauthorized') $('status').textContent = 'error: ' + e.message })
   }
 
   function start() {
-    $('login').hidden = true; $('app').hidden = false
     refresh(); stop()
     if ($('live').checked) timer = setInterval(refresh, 5000)
   }
 
-  $('login').addEventListener('submit', function (e) {
-    e.preventDefault()
-    token = $('token').value.trim(); $('token').value = ''
-    try { sessionStorage.setItem(KEY, token) } catch (err) {}
-    api('/v1/budget').then(start).catch(function () {})
-  })
-  $('signout').addEventListener('click', function () { signOut('') })
   $('days').addEventListener('change', refresh)
-  $('live').addEventListener('change', function () { stop(); if (this.checked && token) timer = setInterval(refresh, 5000) })
+  $('live').addEventListener('change', function () { stop(); if (this.checked) timer = setInterval(refresh, 5000) })
   ;['f-decision', 'f-served', 'f-fallback', 'f-status'].forEach(function (id) { $(id).addEventListener('change', loadFeed) })
   $('more').addEventListener('click', loadMore)
   $('d-close').addEventListener('click', function () { $('drawer').hidden = true })
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('drawer').hidden = true })
 
-  if (token) start(); else $('login').hidden = false
+  start()
 })()

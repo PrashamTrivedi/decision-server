@@ -6,20 +6,23 @@ import { safeEqual } from '../src/auth'
 const body = (extra: object = {}) => JSON.stringify({ model: 'jev-latest', state: { command: 'ls' }, questions: noulQ, ...extra })
 
 describe('spec 01 passthrough (forced jev)', () => {
-  it('/health is public', async () => {
-    const res = await createApp().request('/health', {}, makeEnv())
+  it('/health needs the key', async () => {
+    expect((await createApp().request('/health', {}, makeEnv())).status).toBe(401)
+    const res = await createApp().request('/health', { headers: { Authorization: 'Bearer test-token' } }, makeEnv())
     expect(res.status).toBe(200)
     expect((await res.json() as any).ok).toBe(true)
   })
 
-  it('/ is public service info with no data, /favicon.ico is 204', async () => {
+  it('/ is service info with no data (needs key), /favicon.ico is 204', async () => {
     const app = createApp()
-    const res = await app.request('/', {}, makeEnv())
+    const h = { headers: { Authorization: 'Bearer test-token' } }
+    expect((await app.request('/', {}, makeEnv())).status).toBe(401)
+    const res = await app.request('/', h, makeEnv())
     expect(res.status).toBe(200)
     const body = await res.json() as any
     expect(body.name).toBe('decision-server')
     expect(JSON.stringify(body)).not.toMatch(/secret|TYPESAFE_API_KEY=|DECISIONS_TOKEN=/i)
-    expect((await app.request('/favicon.ico', {}, makeEnv())).status).toBe(204)
+    expect((await app.request('/favicon.ico', h, makeEnv())).status).toBe(204)
   })
 
   it('401 for missing and wrong bearer on /v1/systemone', async () => {

@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
-import { bearerAuth } from './auth'
+import type { AccessDeps } from './access'
+import { auth } from './auth'
 import type { Deps } from './decide'
 import { DecisionError } from './errors'
 import type { Env } from './env'
 import { budgetSnapshot, getCall, listCalls, parseSince, statsSnapshot, timelineSnapshot } from './log'
+import { authorizationServerMetadata, authorizeForm, authorizeSubmit, protectedResourceMetadata, register, token } from './oauth'
 import { visualizeHtml } from './visualize'
 import { handleMcp } from './mcp'
 import { parseMeta, requestSchema } from './schema'
@@ -11,6 +13,8 @@ import { runDecision, type Waiter } from './service'
 
 export interface AppOptions {
   deps?: Deps
+  /** Test seam: local JWKS instead of fetching Access certs. */
+  access?: AccessDeps
 }
 
 /** Hono throws when there is no ExecutionContext (unit tests); fall back to fire-and-forget. */
@@ -25,8 +29,10 @@ export function waiterFor(c: { executionCtx: { waitUntil(p: Promise<any>): void 
 export function createApp(opts: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env }>()
 
+  // One gate for everything except the OAuth endpoints below (see auth.ts). Browser traffic gets here via Access at the edge.
+  app.use('*', auth(opts.access))
+
   app.get('/health', (c) => c.json({ ok: true, version: c.env.VERSION ?? 'dev' }))
-  // Public service info only; every data route stays behind bearer auth.
   app.get('/', (c) =>
     c.json({
       name: 'decision-server',
@@ -34,18 +40,23 @@ export function createApp(opts: AppOptions = {}) {
       version: c.env.VERSION ?? 'dev',
       source: 'https://github.com/PrashamTrivedi/decision-server',
       endpoints: ['POST /v1/systemone', 'GET /v1/budget', 'GET /v1/stats', 'GET /v1/calls', 'GET /v1/calls/:id', 'GET /v1/timeline', 'GET /visualize', 'POST /mcp', 'GET /health'],
-      auth: 'Authorization: Bearer <token> (all except /, /health and /visualize)',
+      auth: 'Authorization: Bearer <decision key>, or Cloudflare Access login; /mcp also accepts OAuth tokens',
     }),
   )
-  // Public static shell: holds no data, asks for the bearer token client-side and calls /v1/*.
+  // Static shell: holds no data; relies on the Access cookie (same-origin) to call /v1/*.
   app.get('/visualize', (c) =>
     c.html(visualizeHtml, 200, { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'", 'Referrer-Policy': 'no-referrer' }),
   )
   app.get('/favicon.ico', (c) => c.body(null, 204))
 
-  app.use('/v1/*', bearerAuth)
-  app.use('/mcp', bearerAuth)
-  app.use('/mcp/*', bearerAuth)
+  // MCP OAuth authorization server. Public metadata/registration/token; authorize requires an Access JWT.
+  app.get('/.well-known/oauth-protected-resource', (c) => c.json(protectedResourceMetadata(new URL(c.req.url).origin)))
+  app.get('/.well-known/oauth-authorization-server', (c) => c.json(authorizationServerMetadata(new URL(c.req.url).origin)))
+  app.post('/oauth/register', register)
+  app.get('/oauth/authorize', (c) => authorizeForm(c, opts.access))
+  app.post('/oauth/authorize', (c) => authorizeSubmit(c, opts.access))
+  app.post('/oauth/token', token)
+
   app.all('/mcp', (c) => handleMcp(c.env, c.req.raw, waiterFor(c), opts.deps))
   app.all('/mcp/*', (c) => handleMcp(c.env, c.req.raw, waiterFor(c), opts.deps))
 

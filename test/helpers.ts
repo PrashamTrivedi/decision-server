@@ -8,6 +8,8 @@ export function makeEnv(over: Partial<Env> = {}): Env {
     AI: { run: async () => { throw new Error('AI not stubbed') } },
     DB: makeD1(),
     DECISIONS_TOKEN: TOKEN,
+    ACCESS_TEAM_DOMAIN: 'team.test',
+    ACCESS_AUD: 'REPLACE_WITH_ACCESS_AUD',
     TYPESAFE_API_KEY: 'jev-key',
     AI_GATEWAY_ID: 'default',
     SHADOW: 'off',

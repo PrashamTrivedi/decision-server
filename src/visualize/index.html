@@ -17,18 +17,9 @@
     <select id="days"><option value="1">24h</option><option value="7">7d</option><option value="30">30d</option><option value="90">90d</option></select>
   </label>
   <label class="muted"><input type="checkbox" id="live" checked> Live</label>
-  <button id="signout" type="button">Sign out</button>
 </header>
 
-<form id="login" class="card" autocomplete="off">
-  <h2>Bearer token</h2>
-  <p class="muted">Kept in this tab's sessionStorage only. This page itself holds no data.</p>
-  <input id="token" type="password" placeholder="DECISIONS_TOKEN" required>
-  <button type="submit">Connect</button>
-  <p id="loginerr" class="err"></p>
-</form>
-
-<main id="app" hidden>
+<main id="app">
   <section class="grid kpis" id="kpis"></section>
   <section class="grid two">
     <div class="card"><h2>Routing mix over time</h2><div id="mix"></div><div id="mixlegend" class="legend"></div></div>
