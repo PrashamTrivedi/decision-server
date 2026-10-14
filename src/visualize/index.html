@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Decision Server Visualizer</title>
+<style>/*STYLE*/</style>
+</head>
+<body>
+<header>
+  <h1>Decision server</h1>
+  <span id="status" class="muted">idle</span>
+  <span class="spacer"></span>
+  <label class="muted">Window
+    <select id="days"><option value="1">24h</option><option value="7">7d</option><option value="30">30d</option><option value="90">90d</option></select>
+  </label>
+  <label class="muted"><input type="checkbox" id="live" checked> Live</label>
+  <button id="signout" type="button">Sign out</button>
+</header>
+
+<form id="login" class="card" autocomplete="off">
+  <h2>Bearer token</h2>
+  <p class="muted">Kept in this tab's sessionStorage only. This page itself holds no data.</p>
+  <input id="token" type="password" placeholder="DECISIONS_TOKEN" required>
+  <button type="submit">Connect</button>
+  <p id="loginerr" class="err"></p>
+</form>
+
+<main id="app" hidden>
+  <section class="grid kpis" id="kpis"></section>
+  <section class="grid two">
+    <div class="card"><h2>Routing mix over time</h2><div id="mix"></div><div id="mixlegend" class="legend"></div></div>
+    <div class="card"><h2>Budget</h2><div id="budget"></div></div>
+  </section>
+  <section class="grid two">
+    <div class="card"><h2>Fallbacks by reason</h2><div id="fallbacks"></div></div>
+    <div class="card"><h2>Latency p50 / p90 per tier</h2><div id="latency"></div></div>
+  </section>
+  <section class="grid two">
+    <div class="card"><h2>Shadow agreement per decision</h2><div id="shadow"></div></div>
+    <div class="card"><h2>Route reasons</h2><div id="routes"></div></div>
+  </section>
+  <section class="card">
+    <h2>Call feed</h2>
+    <div class="filters">
+      <select id="f-decision"><option value="">decision: any</option></select>
+      <select id="f-served"><option value="">servedBy: any</option><option>flash</option><option>clef</option><option>omni</option><option>jev</option></select>
+      <select id="f-fallback"><option value="">fallback: any</option></select>
+      <select id="f-status"><option value="">status: any</option><option>ok</option><option>error</option></select>
+    </div>
+    <div class="tablewrap"><table id="feed"><thead><tr><th>time</th><th>decision</th><th>served</th><th>ms</th><th>status</th><th>fallback / route</th></tr></thead><tbody></tbody></table></div>
+    <button id="more" type="button">Load older</button>
+  </section>
+</main>
+
+<aside id="drawer" hidden>
+  <div class="drawerhead"><strong id="d-title">Call</strong><button id="d-close" type="button">Close</button></div>
+  <dl id="d-meta"></dl>
+  <h3>state</h3><pre id="d-state"></pre>
+  <h3>questions</h3><pre id="d-questions"></pre>
+  <h3>answers</h3><pre id="d-answers"></pre>
+</aside>
+<script>/*SCRIPT*/</script>
+</body>
+</html>
