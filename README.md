@@ -23,6 +23,10 @@ Everything except `/health` needs `Authorization: Bearer $DECISIONS_TOKEN`.
 
 Any Clef error, timeout, or incomplete answer falls back to Jev within the request deadline (`X-Deadline-Ms`, default 3800). If Jev fails too the server returns `502` (or `504` on deadline). It never invents answers.
 
+**Budget.** Clef calls go through the AI Gateway named by `AI_GATEWAY_ID` (default `default`). That gateway's spend-limit rules are the budget, and there's no counter in the server. If other tools share the gateway, they share its limit: when one trips it, the server falls back to Jev, and the other tools are locked out until it resets. On a Workers Paid plan with no gateway rule, usage past the free 10k neurons is billed at $0.011 per 1,000 instead of returning an error.
+
+**Media.** Embedded media goes only to `clef-omni`. On a Jev fallback the top-level `images`/`audio`/`videos` arrays are dropped, because Jev's API has no media fields. Calls with media are never shadowed. **Shadow.** With `SHADOW=on`, free-served calls are also sent to Jev in the background, and both answers are stored in `shadow_pairs` for the agreement stats.
+
 ## Setup
 
 Uses the Cloudflare `cf` CLI (`cloudflare.config.ts`).
