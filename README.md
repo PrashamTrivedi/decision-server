@@ -46,7 +46,7 @@ bunx cf deploy --secrets-file .dev.vars   # serves decisions.prashamhtrivedi.app
 # Later rotations: cf workers secrets update <NAME> --worker decision-server --text "$VALUE"
 ```
 
-**Deploys after that come from git.** A Workers Builds trigger runs `bun run typecheck && bun run test:run` and then `bun run deploy` on every push to `main`. Cloudflare's GitHub app needs access to this repo for that to work.
+**Deploys after that come from git** (Workers Builds). Every push runs `bun run typecheck && bun run test:run`. On `main` it then runs `bun run deploy` to production. On any other branch it runs `bun run preview` (`cf previews deploy`), which publishes a Preview named after the branch. Previews share production's D1 and secrets.
 
 Config (`cloudflare.config.ts`): `AI_GATEWAY_ID` (default `default`, every Clef call goes through that AI Gateway, so its spend-limit rules are the budget), `SHADOW` (`on` sends each free-served call to Jev too and stores both answers), `RETENTION_DAYS` (30; a daily cron purges older rows). `AMBIGUITY_BAND` (e.g. `0.3,0.85`) can be added as a text binding to tune escalation.
 

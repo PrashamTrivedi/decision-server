@@ -7,6 +7,8 @@ export default defineConfig({
     compatibilityFlags: ["nodejs_compat"],
     entrypoint: "src/index.ts",
     observability: { enabled: true },
+    // Preview URLs for non-main branches (Workers Builds Previews).
+    previewUrls: true,
     domains: ["decisions.prashamhtrivedi.app"],
     triggers: [triggers.scheduled({ schedule: "0 3 * * *" })],
     env: {
