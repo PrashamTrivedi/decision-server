@@ -10,6 +10,10 @@ export interface Env {
   DECISIONS_TOKEN: string
   /** Secret: outbound Jev key. */
   TYPESAFE_API_KEY: string
+  /** Cloudflare Access team domain, e.g. prasham-dev.cloudflareaccess.com. */
+  ACCESS_TEAM_DOMAIN: string
+  /** Access app AUD tag. Unset or the REPLACE_WITH_ACCESS_AUD placeholder disables the Access JWT path. */
+  ACCESS_AUD: string
   /** AI Gateway id used for every AI.run call. */
   AI_GATEWAY_ID: string
   /** "on" enables live shadow comparison against Jev. */
