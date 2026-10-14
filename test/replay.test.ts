@@ -17,3 +17,14 @@ describe('replay summary', () => {
     expect(formatReport(sum)).toContain('below target')
   })
 })
+
+describe('replay jev-served', () => {
+  it('excludes jev-served calls from agreement and reports them separately', () => {
+    const sum = summarize([
+      { decision: 'injection-screen', servedBy: 'jev', ok: true, free: { injection: n(0.9) }, jev: { injection: n(0.95) } },
+      { decision: 'injection-screen', servedBy: 'clef', ok: true, free: { injection: n(0.1) }, jev: { injection: n(0.95) } },
+    ])
+    expect(sum.overall).toMatchObject({ questions: 1, agree: 0, jevServed: 1, jevShare: 0.5 })
+    expect(formatReport(sum)).toContain('jev-served')
+  })
+})

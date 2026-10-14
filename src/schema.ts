@@ -29,6 +29,8 @@ export type ScoreAnswer = { type: 'score'; score: number; probabilities: Record<
 export type Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer
 export type Answers = Record<string, Answer>
 
+const unit = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1
+
 /** Validates that `answers` has a well-formed answer for every question id (never return partial answers). */
 export function answersComplete(questions: Questions, answers: unknown): answers is Answers {
   if (!answers || typeof answers !== 'object') return false
@@ -36,9 +38,17 @@ export function answersComplete(questions: Questions, answers: unknown): answers
   for (const [id, q] of Object.entries(questions)) {
     const x = a[id]
     if (!x || typeof x !== 'object' || x.type !== q.type) return false
-    if (q.type === 'noul' && typeof x.noul !== 'number') return false
-    if (q.type === 'choice' && typeof x.choice !== 'string') return false
-    if (q.type === 'score' && typeof x.score !== 'number') return false
+    if (q.type === 'noul' && !unit(x.noul)) return false
+    if (q.type === 'choice') {
+      if (typeof x.choice !== 'string' || !Object.hasOwn(q.criteria, x.choice) || !unit(x.confidence)) return false
+    }
+    if (q.type === 'score') {
+      if (typeof x.score !== 'number' || !Number.isFinite(x.score) || !unit(x.confidence)) return false
+      const n = q.criteria.length
+      if (x.probabilities && typeof x.probabilities === 'object') {
+        for (const k of Object.keys(x.probabilities)) if (!/^\d+$/.test(k) || Number(k) >= n) return false
+      }
+    }
   }
   return true
 }

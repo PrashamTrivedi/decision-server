@@ -3,7 +3,7 @@
  * Replays logged jev-harness calls against the decision server and reports per-decision agreement
  * with the logged Jev answers, at each decision's default harness thresholds.
  *
- *   DECISIONS_TOKEN=... bun scripts/replay.ts --limit 1000 [--url https://...] [--db ~/.jev-harness/jev.db] [--decision shell-safety]
+ *   DECISIONS_TOKEN=... bun scripts/replay.ts --limit 1000 [--url https://...] [--db ~/.jev-harness/jev.db] [--decision shell-safety] [--deadline 3800]
  *
  * The ledger (ledger.jsonl) only keeps compact signals, not the request payloads, so the full
  * {state, questions, answers} comes from the harness's jev.db (table jev_calls, see core/db.ts).
@@ -23,6 +23,7 @@ const url = (arg('url') ?? process.env.DECISIONS_URL ?? 'https://decisions.prash
 const token = process.env.DECISIONS_TOKEN
 const limit = Number(arg('limit', '1000'))
 const concurrency = Number(arg('concurrency', '4'))
+const deadlineMs = Number(arg('deadline', '3800'))
 const only = arg('decision')
 const dbPath = (arg('db') ?? join(process.env.JEV_HARNESS_HOME ?? join(homedir(), '.jev-harness'), 'jev.db')).replace(/^~\//, homedir() + '/')
 
@@ -49,7 +50,7 @@ async function replayOne(r: (typeof rows)[number]): Promise<ReplayResult> {
   try {
     const res = await fetch(`${url}/v1/systemone`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Decision': r.decision, 'X-Replay': '1', 'X-Deadline-Ms': '8000' },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Decision': r.decision, 'X-Replay': '1', 'X-Deadline-Ms': String(deadlineMs) },
       body: JSON.stringify({ model: 'auto', state: JSON.parse(r.state), questions: JSON.parse(r.questions) }),
     })
     if (!res.ok) return { decision: r.decision, servedBy: 'none', ok: false, error: `HTTP ${res.status}`, jev }

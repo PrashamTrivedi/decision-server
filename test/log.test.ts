@@ -190,3 +190,57 @@ describe('retention purge', () => {
     expect(await purge(s.env.DB, Date.now(), 30)).toEqual({ calls: 0, pairs: 0 })
   })
 })
+
+describe('review pass 1 fixes', () => {
+  const mediaBody = JSON.stringify({ model: 'auto', state: { command: 'ls' }, questions: noulQ, images: ['data:image/png;base64,AAAA'], extra: 1 })
+
+  it('Jev fallback forwards the original body (state, media, extra fields), model forced', async () => {
+    const s = setup({ ai: () => { throw new Error('x') } })
+    await s.app.request('/v1/systemone', { method: 'POST', headers: { ...auth, 'X-Decision': 'shell-safety' }, body: mediaBody }, s.env, s.ctx as any)
+    const sent = JSON.parse((s.fetchMock.mock.calls[0] as any)[1].body)
+    expect(sent).toMatchObject({ model: 'jev-latest', state: { command: 'ls' }, images: ['data:image/png;base64,AAAA'], extra: 1 })
+  })
+
+  it('never shadows a call with media', async () => {
+    const s = setup({ shadow: 'on', ai: () => clefOut({ dangerous: { type: 'noul', noul: 0.9 } }, 300, 'clef-omni') })
+    const res = await s.app.request('/v1/systemone', { method: 'POST', headers: auth, body: mediaBody }, s.env, s.ctx as any)
+    expect(res.status).toBe(200)
+    await s.ctx.flush()
+    expect(s.fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('non-DecisionError is logged and returns generic 500', async () => {
+    const s = setup()
+    s.env.AI = { run: async () => { throw new Error('secret boom') } } as any
+    const app = createApp({ deps: { fetch: (() => { throw new TypeError('secret boom') }) as any } })
+    const res = await app.request('/v1/systemone', { method: 'POST', headers: { ...auth, 'X-Decision': 'shell-safety' }, body }, s.env, s.ctx as any)
+    expect(res.status).toBe(502)
+    await s.ctx.flush()
+    expect(s.db.raw.prepare('SELECT COUNT(*) c FROM calls').get()).toEqual({ c: 1 })
+  })
+
+  it('onError hides the message', async () => {
+    const s = setup()
+    s.env.DB = { prepare: () => { throw new Error('secret db') } } as any
+    const res = await s.app.request('/v1/budget', { headers: auth }, s.env)
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'internal' })
+  })
+
+  it('budget counters match prefixed reasons', async () => {
+    const s = setup()
+    const ins = s.db.raw.prepare('INSERT INTO calls (id, ts, status, fallback_reason, neurons, latency_ms, replay) VALUES (?,?,?,?,?,?,?)')
+    const ts = Date.now()
+    ins.run('a', ts, 'ok', 'router-spend-limit', 0, 1, 0)
+    ins.run('b', ts, 'ok', 'escalation-quota', 0, 1, 0)
+    const b: any = await (await get(s.app, s.env, '/v1/budget')).json()
+    expect(b).toMatchObject({ spendLimitErrors: 1, quotaErrors: 1 })
+  })
+
+  it('limit/days garbage falls back to defaults', async () => {
+    const s = setup()
+    expect((await get(s.app, s.env, '/v1/calls?limit=abc')).status).toBe(200)
+    expect(((await (await get(s.app, s.env, '/v1/stats?days=abc')).json()) as any).days).toBe(1)
+    expect(((await (await get(s.app, s.env, '/v1/stats?days=2.7')).json()) as any).days).toBe(2)
+  })
+})

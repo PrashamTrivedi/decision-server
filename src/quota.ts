@@ -33,8 +33,8 @@ function textOf(err: unknown): string {
  */
 export function classify(err: unknown): ErrorClass {
   const t = textOf(err)
-  if (/(["']?code["']?\s*[:=]\s*2041\b)|\b2041\b|spend limit exceeded/i.test(t)) return 'spend-limit'
-  if (/(["']?code["']?\s*[:=]\s*4006\b)|\b4006\b|daily free allocation|used up your daily free/i.test(t)) return 'quota'
+  if (/(["']?code["']?\s*[:=]\s*2041\b)|spend limit exceeded/i.test(t)) return 'spend-limit'
+  if (/(["']?code["']?\s*[:=]\s*4006\b)|daily free allocation|used up your daily free/i.test(t)) return 'quota'
   return 'other'
 }
 

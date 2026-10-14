@@ -23,6 +23,8 @@ describe('classify', () => {
     expect(classify(new Error('model overloaded'))).toBe('other')
     expect(classify(new Error('timeout 14006ms'))).toBe('other')
     expect(classify(null)).toBe('other')
+    expect(classify(new Error('input has 4006 tokens'))).toBe('other')
+    expect(classify(new Error('request 2041 failed'))).toBe('other')
   })
 })
 

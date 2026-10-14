@@ -1,7 +1,7 @@
 import type { Env } from './env'
 import { DecisionError } from './errors'
 import { extractMedia, type Media } from './media'
-import { callClef, ClefError, type ClefTier } from './providers/clef'
+import { callClef, ClefError, neuronsFor, type ClefTier } from './providers/clef'
 import { callJev } from './providers/jev'
 import { markSkip, skipState } from './quota'
 import {
@@ -76,7 +76,7 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
   const callJevNow = async (reason: string, fallbackReason?: string): Promise<DecisionOutcome> => {
     trace.routeReason = reason
     if (fallbackReason) trace.fallbackReason = fallbackReason
-    const r = await callJev(env, req.state, req.questions, meta.deadlineAt, deps.fetch)
+    const r = await callJev(env, req, req.questions, meta.deadlineAt, deps.fetch)
     trace.model = r.model
     trace.inputTokens = r.inputTokens
     return finish(r.answers, r.model, r.inputTokens, 'jev', reason)
@@ -102,11 +102,15 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
   }
 
   const clef = async (tier: ClefTier, st: unknown, qs: Questions, m: Media | null) => {
+    const timeoutMs = meta.deadlineAt - CLEF_RESERVE_MS - now()
+    if (timeoutMs < MIN_CLEF_MS) throw new ClefError('no-time', 'no time left for clef')
     try {
-      const r = await callClef(env.AI, env.AI_GATEWAY_ID, tier, st, qs, m, meta.deadlineAt - CLEF_RESERVE_MS - now())
+      const r = await callClef(env.AI, env.AI_GATEWAY_ID, tier, st, qs, m, timeoutMs)
       trace.neurons += r.neurons
       return r
     } catch (err) {
+      // An abandoned call may still be billed: estimate input tokens (~4 chars each) at the tier's rate.
+      if (err instanceof ClefError && err.kind === 'timeout') trace.neurons += neuronsFor(tier, Math.ceil(JSON.stringify({ state: st, questions: qs }).length / 4))
       // Gateway spend limit (15 min) or Workers AI free quota (until 00:00 UTC): stop wasting attempts in this isolate.
       if (err instanceof ClefError && (err.kind === 'spend-limit' || err.kind === 'quota')) markSkip(err.kind, now())
       throw err
@@ -143,7 +147,7 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
 
     try {
       const r = await clef(tier, cleanState, req.questions, tier === 'omni' ? media : null)
-      if (escalate && tier === 'flash' && needsEscalation(r.answers, escalationConfig(env)) && meta.deadlineAt - now() >= escalationConfig(env).minRemainingMs) {
+      if (escalate && tier === 'flash' && needsEscalation(r.answers, escalationConfig(env)) && meta.deadlineAt - now() >= escalationConfig(env).minRemainingMs && meta.deadlineAt - now() - CLEF_RESERVE_MS >= MIN_CLEF_MS) {
         try {
           const r2 = await clef('clef', cleanState, req.questions, null)
           return finish(r2.answers, r2.model, r2.inputTokens, 'clef', `${reason}+escalated`)

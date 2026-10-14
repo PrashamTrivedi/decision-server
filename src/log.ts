@@ -94,14 +94,14 @@ export async function budgetSnapshot(db: D1Database, now = Date.now()) {
   const today = await db
     .prepare(
       `SELECT COALESCE(SUM(neurons),0) AS neurons,
-              COALESCE(SUM(fallback_reason='spend-limit'),0) AS spend,
-              COALESCE(SUM(fallback_reason='quota'),0) AS quota
+              COALESCE(SUM(fallback_reason LIKE '%spend-limit'),0) AS spend,
+              COALESCE(SUM(fallback_reason LIKE '%quota'),0) AS quota
          FROM calls WHERE ts >= ?`,
     )
     .bind(start)
     .first<{ neurons: number; spend: number; quota: number }>()
   const last = await db
-    .prepare(`SELECT MAX(ts) AS ts FROM calls WHERE fallback_reason IN ('spend-limit','quota')`)
+    .prepare(`SELECT MAX(ts) AS ts FROM calls WHERE (fallback_reason LIKE '%spend-limit' OR fallback_reason LIKE '%quota')`)
     .first<{ ts: number | null }>()
   const skip = skipState(now)
   return {
@@ -188,7 +188,8 @@ export async function listCalls(db: D1Database, f: CallFilters) {
   if (f.servedBy) { where.push('served_by = ?'); args.push(f.servedBy) }
   if (f.since) { where.push('ts >= ?'); args.push(f.since) }
   if (f.before) { where.push('ts < ?'); args.push(f.before) }
-  const limit = Math.min(Math.max(f.limit ?? 50, 1), 200)
+  const n = Math.floor(Number(f.limit))
+  const limit = Number.isFinite(n) ? Math.min(Math.max(n, 1), 200) : 50
   const rows = (
     await db
       .prepare(`SELECT * FROM calls ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY ts DESC LIMIT ?`)

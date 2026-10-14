@@ -47,7 +47,7 @@ describe('either escalation', () => {
   })
   it('no escalation with under 1500ms left', async () => {
     const { ai, calls } = fakeAi(() => clefOut(ambiguous))
-    const { response } = await run(ai, jevFetch(), req(), meta({ decision: 'semantic-lint' }, 1400))
+    const { response } = await run(ai, jevFetch(), req(), meta({ decision: 'semantic-lint' }, 1450))
     expect(calls).toHaveLength(1)
     expect(response.servedBy).toBe('flash')
   })
@@ -177,6 +177,26 @@ describe('fallback branches', () => {
     expect(calls).toHaveLength(0)
     expect(trace.fallbackReason).toBe('no-time')
   })
+  it('timeout below MIN_CLEF_MS (but > 0) skips Clef', async () => {
+    const { ai, calls } = fakeAi(() => clefOut(confident))
+    const { trace } = await run(ai, jevFetch(), req(), meta({ decision: 'shell-safety' }, 1300))
+    expect(calls).toHaveLength(0)
+    expect(trace.fallbackReason).toBe('no-time')
+  })
+  it('Clef timeout adds an estimated neuron cost', async () => {
+    vi.useFakeTimers()
+    try {
+      const { ai } = fakeAi(() => new Promise(() => {}))
+      const r = req()
+      const pending = run(ai, jevFetch(), r, meta({ decision: 'shell-safety' }, 2000))
+      await vi.advanceTimersByTimeAsync(2000)
+      const { trace } = await pending
+      const tokens = Math.ceil(JSON.stringify({ state: r.state, questions: r.questions }).length / 4)
+      expect(trace.neurons).toBeCloseTo((tokens * 3455) / 1e6, 8)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('Clef and Jev both fail -> 502, never answers', async () => {
     const { ai } = fakeAi(() => { throw new Error('x') })
     const f = (async () => new Response('down', { status: 503 })) as any
@@ -197,5 +217,30 @@ describe('fallback branches', () => {
     const { response } = await run(fakeAi(() => { throw new Error('x') }).ai, f, req(), meta({ decision: 'shell-safety' }))
     expect(response.servedBy).toBe('jev')
     expect(n).toBe(2)
+  })
+})
+
+import { answersComplete } from '../src/schema'
+describe('answersComplete strictness', () => {
+  const qs: any = {
+    c: { type: 'choice', instructions: 'x', criteria: { a: 'A', other: 'O' } },
+    n: { type: 'noul', instructions: 'x' },
+    s: { type: 'score', instructions: 'x', criteria: ['l0', 'l1'] },
+  }
+  const good = () => ({ c: { type: 'choice', choice: 'a', confidence: 0.9, probabilities: {} }, n: { type: 'noul', noul: 0.5 }, s: { type: 'score', score: 1, confidence: 0.5, probabilities: { '0': 0.5, '1': 0.5 } } })
+  it('accepts valid', () => expect(answersComplete(qs, good())).toBe(true))
+  it('rejects bad choice / ranges / probability keys', () => {
+    for (const mut of [
+      (a: any) => (a.c.choice = 'zzz'),
+      (a: any) => (a.c.confidence = 1.5),
+      (a: any) => (a.n.noul = NaN),
+      (a: any) => (a.n.noul = -0.1),
+      (a: any) => (a.s.confidence = 2),
+      (a: any) => (a.s.probabilities = { '5': 1 }),
+    ]) {
+      const a = good()
+      mut(a)
+      expect(answersComplete(qs, a)).toBe(false)
+    }
   })
 })

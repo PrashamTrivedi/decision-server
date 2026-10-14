@@ -27,10 +27,9 @@ export async function runDecision(env: Env, waiter: Waiter, req: DecisionRequest
     )
     return outcome
   } catch (err) {
-    if (err instanceof DecisionError) {
-      const trace = traceOf(err) ?? { routeReason: '', inputTokens: 0, neurons: 0, mediaCount: 0 }
-      log(insertCall(env.DB, buildRow({ id, now: now(), meta, req, trace, answers: null, error: err.message })))
-    }
-    throw err
+    const de = err instanceof DecisionError ? err : new DecisionError(`internal: ${(err as any)?.message ?? err}`, 502)
+    const trace = traceOf(de) ?? { routeReason: '', inputTokens: 0, neurons: 0, mediaCount: 0 }
+    log(insertCall(env.DB, buildRow({ id, now: now(), meta, req, trace, answers: null, error: de.message })))
+    throw de
   }
 }

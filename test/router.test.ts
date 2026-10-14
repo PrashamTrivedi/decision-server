@@ -10,7 +10,7 @@ describe('route table', () => {
   const expected: Record<string, string> = {
     'shell-safety': 'flash', 'outbound-leak': 'flash', 'loop-detector': 'flash', 'compact-advisor': 'flash',
     'promise-continue': 'flash', 'failure-triage': 'flash',
-    'read-budget': 'clef', 'mcp-trim': 'clef', 'memory-hygiene': 'clef', 'injection-screen': 'clef', ask_jev_file: 'clef',
+    'read-budget': 'clef', 'mcp-trim': 'clef', 'memory-hygiene': 'clef', 'injection-screen': 'clef', 'mcp:ask_jev_file': 'clef', 'mcp:ask_jev_files': 'clef', 'mcp:ask_jev': 'clef', 'mcp:pick_first_file': 'flash', 'mcp:command-gate': 'flash', 'screenshot-gate': 'flash', 'deploy-preflight': 'flash+escalate',
     'semantic-lint': 'flash+escalate', 'subagent-router': 'flash+escalate',
   }
   it('covers every row', () => {

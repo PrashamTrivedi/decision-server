@@ -17,18 +17,18 @@ export interface ProviderResult {
 type FetchFn = typeof fetch
 
 /**
- * Calls Jev with whatever time remains. One 429 retry inside the deadline (same as the harness client).
+ * Calls Jev with the caller's original request body (model forced to jev-latest) and whatever time remains. One 429 retry inside the deadline (same as the harness client).
  * Throws DecisionError(504) on deadline, DecisionError(502) on everything else.
  */
 export async function callJev(
   env: Pick<Env, 'TYPESAFE_API_KEY'>,
-  state: unknown,
+  original: Record<string, unknown>,
   questions: Questions,
   deadlineAt: number,
   fetchFn: FetchFn = fetch,
 ): Promise<ProviderResult> {
   if (!env.TYPESAFE_API_KEY) throw new DecisionError('TYPESAFE_API_KEY not configured', 502)
-  const body = JSON.stringify({ model: JEV_MODEL, state, questions })
+  const body = JSON.stringify({ ...original, model: JEV_MODEL })
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = deadlineAt - Date.now()
@@ -37,6 +37,7 @@ export async function callJev(
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), remaining)
     let res: Response
+    let data: any
     try {
       res = await fetchFn(JEV_ENDPOINT, {
         method: 'POST',
@@ -44,23 +45,26 @@ export async function callJev(
         body,
         signal: ctrl.signal,
       })
+      if (res.status === 429 && attempt === 0) {
+        const wait = Math.min(Number(res.headers.get('retry-after') ?? 0.3) * 1000, deadlineAt - Date.now() - 100)
+        clearTimeout(timer)
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+        continue
+      }
+      // The abort timer stays armed until the body is fully read and parsed.
+      if (!res.ok) throw new DecisionError(`jev HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`, 502)
+      try {
+        data = await res.json()
+      } catch (err: any) {
+        if (err?.name === 'AbortError') throw err
+        throw new DecisionError('jev returned invalid JSON', 502)
+      }
     } catch (err: any) {
+      if (err instanceof DecisionError) throw err
       if (err?.name === 'AbortError') throw new DecisionError('deadline exceeded', 504)
       throw new DecisionError(`jev network error: ${err?.message ?? err}`, 502)
     } finally {
       clearTimeout(timer)
-    }
-    if (res.status === 429 && attempt === 0) {
-      const wait = Math.min(Number(res.headers.get('retry-after') ?? 0.3) * 1000, deadlineAt - Date.now() - 100)
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait))
-      continue
-    }
-    if (!res.ok) throw new DecisionError(`jev HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`, 502)
-    let data: any
-    try {
-      data = await res.json()
-    } catch {
-      throw new DecisionError('jev returned invalid JSON', 502)
     }
     if (!answersComplete(questions, data?.answers)) throw new DecisionError('jev returned incomplete answers', 502)
     return {

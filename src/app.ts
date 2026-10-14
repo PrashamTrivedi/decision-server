@@ -54,7 +54,8 @@ export function createApp(opts: AppOptions = {}) {
   app.get('/v1/budget', async (c) => c.json(await budgetSnapshot(c.env.DB)))
 
   app.get('/v1/stats', async (c) => {
-    const days = Math.min(Math.max(Number(c.req.query('days')) || 1, 1), 90)
+    const d = Math.floor(Number(c.req.query('days')))
+    const days = Number.isFinite(d) ? Math.min(Math.max(d, 1), 90) : 1
     return c.json(await statsSnapshot(c.env.DB, days))
   })
 
@@ -71,6 +72,9 @@ export function createApp(opts: AppOptions = {}) {
     )
   })
 
-  app.onError((err, c) => c.json({ error: `internal error: ${err.message}` }, 500))
+  app.onError((err, c) => {
+    console.error('unhandled', err)
+    return c.json({ error: 'internal' }, 500)
+  })
   return app
 }
