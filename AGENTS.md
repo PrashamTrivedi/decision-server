@@ -12,7 +12,7 @@ bun run dev            # cf dev
 ```
 
 - The package manager is bun (`bun.lock`). Never add `package-lock.json`.
-- Tooling is the Cloudflare `cf` CLI with `cloudflare.config.ts`. Never add `wrangler.jsonc`.
+- Tooling is the Cloudflare `cf` CLI with `cloudflare.config.ts`, built through `@cloudflare/vite-plugin` (`vite.config.ts`). Never add `wrangler.jsonc`.
 
 ## Directories
 
@@ -26,4 +26,4 @@ bun run dev            # cf dev
 
 ## Ask before
 
-Anything that touches live Cloudflare resources: `cf deploy`, `cf d1 …` without `--local`, `cf workers secrets …`, or AI Gateway rules. The `default` gateway is shared with other tools, and tightening its spend limit locks them out too.
+**Pushing to `main` deploys to production** (Workers Builds). Ask before pushing there. The same goes for anything else that touches live Cloudflare resources: `cf deploy`, `cf d1 …` without `--local`, `cf workers secrets …`, or AI Gateway rules. The `default` gateway is shared with other tools, and tightening its spend limit locks them out too.

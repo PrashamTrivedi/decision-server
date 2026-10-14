@@ -11,8 +11,7 @@ export default defineConfig({
     triggers: [triggers.scheduled({ schedule: "0 3 * * *" })],
     env: {
       AI: bindings.ai(),
-      // Replace the id after `cf d1 create` (not run by the build agent).
-      DB: bindings.d1({ name: "decisions-db", id: "REPLACE_AFTER_D1_CREATE" }),
+      DB: bindings.d1({ name: "decisions-db", id: "4e152711-4afd-4482-868c-b98df3e6ef35" }),
       AI_GATEWAY_ID: bindings.text("default"),
       SHADOW: bindings.text("off"),
       RETENTION_DAYS: bindings.text("30"),

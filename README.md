@@ -29,11 +29,11 @@ Any Clef error, timeout, or incomplete answer falls back to Jev within the reque
 
 ## Setup
 
-Uses the Cloudflare `cf` CLI (`cloudflare.config.ts`).
+Uses the Cloudflare `cf` CLI (`cloudflare.config.ts`), with `@cloudflare/vite-plugin` (`vite.config.ts`) as the build backend.
 
 ```bash
 bun install
-cp .dev.vars.example .dev.vars            # local dev secrets
+cp .dev.vars.example .dev.vars            # fill in DECISIONS_TOKEN (e.g. openssl rand -hex 32) and TYPESAFE_API_KEY
 bun run typecheck                         # cf workers types && tsc
 bun run test:run                          # vitest (not `bun test`, which is bun's own runner)
 
@@ -41,10 +41,12 @@ cf d1 create --name decisions-db          # put the returned id in cloudflare.co
 export DECISIONS_DB_ID=<that id>
 bun run db:migrate                        # cf d1 migrations apply "$DECISIONS_DB_ID"
 
-cf workers secrets update DECISIONS_TOKEN  --worker decision-server --text "$DECISIONS_TOKEN"
-cf workers secrets update TYPESAFE_API_KEY --worker decision-server --text "$TYPESAFE_API_KEY"
-bun run deploy                            # cf deploy; serves decisions.prashamhtrivedi.app
+# First deploy: the Worker doesn't exist yet, so its required secrets ship with the deploy.
+bunx cf deploy --secrets-file .dev.vars   # serves decisions.prashamhtrivedi.app
+# Later rotations: cf workers secrets update <NAME> --worker decision-server --text "$VALUE"
 ```
+
+**Deploys after that come from git.** A Workers Builds trigger runs `bun run typecheck && bun run test:run` and then `bun run deploy` on every push to `main`. Cloudflare's GitHub app needs access to this repo for that to work.
 
 Config (`cloudflare.config.ts`): `AI_GATEWAY_ID` (default `default`, every Clef call goes through that AI Gateway, so its spend-limit rules are the budget), `SHADOW` (`on` sends each free-served call to Jev too and stores both answers), `RETENTION_DAYS` (30; a daily cron purges older rows). `AMBIGUITY_BAND` (e.g. `0.3,0.85`) can be added as a text binding to tune escalation.
 
