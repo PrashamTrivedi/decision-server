@@ -3,7 +3,8 @@ import { bearerAuth } from './auth'
 import type { Deps } from './decide'
 import { DecisionError } from './errors'
 import type { Env } from './env'
-import { budgetSnapshot, listCalls, parseSince, statsSnapshot } from './log'
+import { budgetSnapshot, getCall, listCalls, parseSince, statsSnapshot, timelineSnapshot } from './log'
+import { visualizeHtml } from './visualize'
 import { handleMcp } from './mcp'
 import { parseMeta, requestSchema } from './schema'
 import { runDecision, type Waiter } from './service'
@@ -32,9 +33,13 @@ export function createApp(opts: AppOptions = {}) {
       description: 'Jev-compatible decisions on free Workers AI Clef models, with Jev fallback.',
       version: c.env.VERSION ?? 'dev',
       source: 'https://github.com/PrashamTrivedi/decision-server',
-      endpoints: ['POST /v1/systemone', 'GET /v1/budget', 'GET /v1/stats', 'GET /v1/calls', 'POST /mcp', 'GET /health'],
-      auth: 'Authorization: Bearer <token> (all except / and /health)',
+      endpoints: ['POST /v1/systemone', 'GET /v1/budget', 'GET /v1/stats', 'GET /v1/calls', 'GET /v1/calls/:id', 'GET /v1/timeline', 'GET /visualize', 'POST /mcp', 'GET /health'],
+      auth: 'Authorization: Bearer <token> (all except /, /health and /visualize)',
     }),
+  )
+  // Public static shell: holds no data, asks for the bearer token client-side and calls /v1/*.
+  app.get('/visualize', (c) =>
+    c.html(visualizeHtml, 200, { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'", 'Referrer-Policy': 'no-referrer' }),
   )
   app.get('/favicon.ico', (c) => c.body(null, 204))
 
@@ -71,6 +76,17 @@ export function createApp(opts: AppOptions = {}) {
     return c.json(await statsSnapshot(c.env.DB, days))
   })
 
+  app.get('/v1/timeline', async (c) => {
+    const d = Math.floor(Number(c.req.query('days')))
+    const days = Number.isFinite(d) ? Math.min(Math.max(d, 1), 90) : 1
+    return c.json(await timelineSnapshot(c.env.DB, days))
+  })
+
+  app.get('/v1/calls/:id', async (c) => {
+    const call = await getCall(c.env.DB, c.req.param('id'))
+    return call ? c.json(call) : c.json({ error: 'not found' }, 404)
+  })
+
   app.get('/v1/calls', async (c) => {
     const q = c.req.query()
     return c.json(
@@ -80,6 +96,9 @@ export function createApp(opts: AppOptions = {}) {
         since: parseSince(q.since),
         before: parseSince(q.before),
         limit: q.limit ? Number(q.limit) : undefined,
+        fallbackReason: q.fallbackReason || undefined,
+        status: q.status || undefined,
+        slim: q.slim === '1',
       }),
     )
   })

@@ -126,9 +126,9 @@ export async function statsSnapshot(db: D1Database, days: number, now = Date.now
   const since = now - days * DAY
   const rows = (
     await db
-      .prepare(`SELECT served_by, fallback_reason, latency_ms, status, neurons FROM calls WHERE ts >= ? AND replay = 0`)
+      .prepare(`SELECT served_by, route_reason, fallback_reason, latency_ms, status, neurons FROM calls WHERE ts >= ? AND replay = 0`)
       .bind(since)
-      .all<{ served_by: string | null; fallback_reason: string | null; latency_ms: number; status: string; neurons: number }>()
+      .all<{ served_by: string | null; route_reason: string | null; fallback_reason: string | null; latency_ms: number; status: string; neurons: number }>()
   ).results
   const ok = rows.filter((r) => r.status === 'ok')
   const mix: Record<string, { count: number; share: number }> = {}
@@ -139,7 +139,11 @@ export async function statsSnapshot(db: D1Database, days: number, now = Date.now
     ;(mix[t] ??= { count: 0, share: 0 }).count++
     ;(lat[t] ??= []).push(r.latency_ms)
   }
-  for (const r of rows) if (r.fallback_reason) fallbacks[r.fallback_reason] = (fallbacks[r.fallback_reason] ?? 0) + 1
+  const routeReasons: Record<string, number> = {}
+  for (const r of rows) {
+    if (r.fallback_reason) fallbacks[r.fallback_reason] = (fallbacks[r.fallback_reason] ?? 0) + 1
+    if (r.route_reason) routeReasons[r.route_reason] = (routeReasons[r.route_reason] ?? 0) + 1
+  }
   for (const m of Object.values(mix)) m.share = ok.length ? Math.round((m.count / ok.length) * 1000) / 1000 : 0
   const latency = Object.fromEntries(
     Object.entries(lat).map(([t, v]) => {
@@ -167,6 +171,7 @@ export async function statsSnapshot(db: D1Database, days: number, now = Date.now
     neurons: Math.round(rows.reduce((a, r) => a + r.neurons, 0) * 100) / 100,
     mix,
     fallbacks,
+    routeReasons,
     latency,
     freePercent: ok.length ? Math.round((free / ok.length) * 1000) / 10 : 0,
     shadow,
@@ -179,6 +184,45 @@ export interface CallFilters {
   since?: number
   before?: number
   limit?: number
+  fallbackReason?: string
+  status?: string
+  /** Omit state/questions/answers (feed polling); fetch one call via getCall for the detail drawer. */
+  slim?: boolean
+}
+
+function shapeCall(r: CallRow, withPayload: boolean): Omit<CallRow, 'replay' | 'state_json' | 'questions_json' | 'answers_json'> & { replay: boolean; state?: any; questions?: any; answers?: any } {
+  const { state_json, questions_json, answers_json, ...rest } = r
+  const base = { ...rest, replay: !!r.replay }
+  if (!withPayload) return base
+  return {
+    ...base,
+    state: state_json ? JSON.parse(state_json) : null,
+    questions: questions_json ? JSON.parse(questions_json) : null,
+    answers: answers_json ? JSON.parse(answers_json) : null,
+  }
+}
+
+export async function getCall(db: D1Database, id: string) {
+  const row = await db.prepare('SELECT * FROM calls WHERE id = ?').bind(id).first<CallRow>()
+  return row ? shapeCall(row, true) : null
+}
+
+/** Served-by counts per time bucket (hourly up to 2 days, daily beyond) for the routing-mix chart. */
+export async function timelineSnapshot(db: D1Database, days: number, now = Date.now()) {
+  const bucketMs = days <= 2 ? 3_600_000 : DAY
+  const since = now - days * DAY
+  const rows = (
+    await db
+      .prepare(
+        `SELECT (ts / ?) * ? AS t, COALESCE(served_by, 'unknown') AS tier, COUNT(*) AS n
+           FROM calls WHERE ts >= ? AND replay = 0 AND status = 'ok' GROUP BY t, tier ORDER BY t`,
+      )
+      .bind(bucketMs, bucketMs, since)
+      .all<{ t: number; tier: string; n: number }>()
+  ).results
+  const byT = new Map<number, Record<string, number>>()
+  for (const r of rows) byT.set(r.t, { ...byT.get(r.t), [r.tier]: r.n })
+  return { days, bucketMs, buckets: [...byT].map(([t, counts]) => ({ t, counts })) }
 }
 
 export async function listCalls(db: D1Database, f: CallFilters) {
@@ -186,6 +230,8 @@ export async function listCalls(db: D1Database, f: CallFilters) {
   const args: unknown[] = []
   if (f.decision) { where.push('decision = ?'); args.push(f.decision) }
   if (f.servedBy) { where.push('served_by = ?'); args.push(f.servedBy) }
+  if (f.fallbackReason) { where.push('fallback_reason = ?'); args.push(f.fallbackReason) }
+  if (f.status === 'ok' || f.status === 'error') { where.push('status = ?'); args.push(f.status) }
   if (f.since) { where.push('ts >= ?'); args.push(f.since) }
   if (f.before) { where.push('ts < ?'); args.push(f.before) }
   const n = Math.floor(Number(f.limit))
@@ -196,16 +242,7 @@ export async function listCalls(db: D1Database, f: CallFilters) {
       .bind(...args, limit)
       .all<CallRow>()
   ).results
-  const calls = rows.map((r) => ({
-    ...r,
-    replay: !!r.replay,
-    state: r.state_json ? JSON.parse(r.state_json) : null,
-    questions: r.questions_json ? JSON.parse(r.questions_json) : null,
-    answers: r.answers_json ? JSON.parse(r.answers_json) : null,
-    state_json: undefined,
-    questions_json: undefined,
-    answers_json: undefined,
-  }))
+  const calls = rows.map((r) => shapeCall(r, !f.slim))
   return { calls, next: rows.length === limit ? rows[rows.length - 1].ts : null }
 }
 
