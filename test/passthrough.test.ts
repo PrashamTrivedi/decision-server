@@ -12,6 +12,16 @@ describe('spec 01 passthrough (forced jev)', () => {
     expect((await res.json() as any).ok).toBe(true)
   })
 
+  it('/ is public service info with no data, /favicon.ico is 204', async () => {
+    const app = createApp()
+    const res = await app.request('/', {}, makeEnv())
+    expect(res.status).toBe(200)
+    const body = await res.json() as any
+    expect(body.name).toBe('decision-server')
+    expect(JSON.stringify(body)).not.toMatch(/secret|TYPESAFE_API_KEY=|DECISIONS_TOKEN=/i)
+    expect((await app.request('/favicon.ico', {}, makeEnv())).status).toBe(204)
+  })
+
   it('401 for missing and wrong bearer on /v1/systemone', async () => {
     const app = createApp()
     expect((await app.request('/v1/systemone', { method: 'POST', body: body() }, makeEnv())).status).toBe(401)

@@ -11,7 +11,7 @@ POST /mcp            tools: decide, budget, stats, recent_calls
 GET  /health         public
 ```
 
-Everything except `/health` needs `Authorization: Bearer $DECISIONS_TOKEN`.
+Everything except `/` (service info) and `/health` needs `Authorization: Bearer $DECISIONS_TOKEN`.
 
 ## How a call is routed
 

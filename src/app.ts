@@ -25,6 +25,18 @@ export function createApp(opts: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env }>()
 
   app.get('/health', (c) => c.json({ ok: true, version: c.env.VERSION ?? 'dev' }))
+  // Public service info only; every data route stays behind bearer auth.
+  app.get('/', (c) =>
+    c.json({
+      name: 'decision-server',
+      description: 'Jev-compatible decisions on free Workers AI Clef models, with Jev fallback.',
+      version: c.env.VERSION ?? 'dev',
+      source: 'https://github.com/PrashamTrivedi/decision-server',
+      endpoints: ['POST /v1/systemone', 'GET /v1/budget', 'GET /v1/stats', 'GET /v1/calls', 'POST /mcp', 'GET /health'],
+      auth: 'Authorization: Bearer <token> (all except / and /health)',
+    }),
+  )
+  app.get('/favicon.ico', (c) => c.body(null, 204))
 
   app.use('/v1/*', bearerAuth)
   app.use('/mcp', bearerAuth)
