@@ -8,10 +8,19 @@ GET  /v1/budget      today's usage, spend-limit/quota errors, skip-Clef flag
 GET  /v1/stats       mix, fallbacks, p50/p90 per tier, free %, shadow disagreement
 GET  /v1/calls       call log with full payloads
 POST /mcp            tools: decide, budget, stats, recent_calls
-GET  /health         public
+GET  /health         needs auth (see below)
+GET  /visualize      dashboard (Access login)
 ```
 
-Everything except `/` (service info) and `/health` needs `Authorization: Bearer $DECISIONS_TOKEN`.
+## Auth
+
+The whole host sits behind Cloudflare Access, and the Worker checks credentials itself. Three ways in:
+
+1. **Decision key** (machines): `Authorization: Bearer $DECISIONS_TOKEN` works on every route.
+2. **Cloudflare Access login** (browser): `/`, `/health`, `/visualize` and `/v1/*` accept a valid Access JWT (`Cf-Access-Jwt-Assertion` header or `CF_Authorization` cookie), verified against `https://$ACCESS_TEAM_DOMAIN/cdn-cgi/access/certs` (RS256, `iss`, `aud` = `ACCESS_AUD`). If `ACCESS_AUD` is empty or still `REPLACE_WITH_ACCESS_AUD`, this path is off and only the decision key works.
+3. **MCP OAuth** (`/mcp` only): the server is its own OAuth authorization server (dynamic client registration, PKCE S256). `/oauth/authorize` requires the Access login, so approving a client means logging in. Access and refresh tokens are opaque, hashed in D1 (migration `0002_oauth.sql`); access tokens last 1h, refresh tokens 30 days and rotate. They are rejected on `/v1/*`.
+
+Set up Access once: `OWNER_EMAIL=you@example.com bash scripts/setup-access.sh` creates the owner-only whole-host app plus a Bypass app for `/v1`, `/mcp`, `/oauth/token`, `/oauth/register` and `/.well-known`, and prints the `ACCESS_AUD` to put in `cloudflare.config.ts`. No new secrets; just apply the D1 migration before deploying.
 
 ## How a call is routed
 
@@ -62,6 +71,9 @@ curl -s -X POST "$DECISIONS_URL/v1/systemone" \
   -H "X-Decision: shell-safety" \
   -d '{"model":"auto","state":{"command":"ls -la"},"questions":{"dangerous":{"type":"noul","instructions":"Could this destroy data?"}}}'
 
+# MCP with OAuth (browser login via Access, no key stored):
+claude mcp add --transport http decisions "$DECISIONS_URL/mcp"
+# or with the decision key:
 claude mcp add --transport http decisions "$DECISIONS_URL/mcp" --header "Authorization: Bearer $DECISIONS_TOKEN"
 ```
 

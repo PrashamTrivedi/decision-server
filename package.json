@@ -14,15 +14,15 @@
     "typecheck": "cf workers types && tsc --noEmit",
     "type-check": "tsc --noEmit",
     "db:migrate": "cf d1 migrations apply \"$DECISIONS_DB_ID\"",
-    "db:migrate:local": "cf d1 migrations apply --local decisions-db",
+    "db:migrate:local": "cf d1 migrations apply 4e152711-4afd-4482-868c-b98df3e6ef35 --local --dir migrations",
     "test": "vitest",
     "test:run": "vitest run",
     "replay": "bun scripts/replay.ts",
     "preview": "cf previews deploy"
   },
   "dependencies": {
-    "agents": "^0.20.1",
     "@modelcontextprotocol/server": "^2.0.0",
+    "agents": "^0.20.1",
     "hono": "^4.12.17",
     "zod": "^4.1.13"
   },

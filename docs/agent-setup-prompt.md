@@ -10,7 +10,7 @@ Set up this machine to use my decision server. Work through the steps in order. 
 **Token:** in the `DECISIONS_TOKEN` environment variable. Never print it, echo it, write it into chat, or commit it. Only reference it as `$DECISIONS_TOKEN` or write it to the credential files named below.
 
 ### 1. Preflight
-- `curl -s $DECISIONS_URL/health` must return `{"ok":true,...}`.
+- `curl -s -H "Authorization: Bearer $DECISIONS_TOKEN" $DECISIONS_URL/health` must return `{"ok":true,...}`. `/health` needs the bearer header now; without it you get 401.
 - `curl -s -H "Authorization: Bearer $DECISIONS_TOKEN" $DECISIONS_URL/v1/budget` must return HTTP 200 with a `serverNeurons` field. A 401 means the token is wrong, so stop.
 - Check whether jev-harness is installed: `~/.jev-harness/config.json` exists, or `~/.claude/skills/jev-harness` exists. **If it's installed, do step 2. If not, skip to step 3.**
 
@@ -24,8 +24,8 @@ Set up this machine to use my decision server. Work through the steps in order. 
 - Do **not** change any decision's `mode`. Shadow/enforce settings stay as they are.
 
 ### 3. Register the remote MCP server for the agent you're running in
-Name the server `decisions`. Use the URL `$DECISIONS_URL/mcp` with the header `Authorization: Bearer <token>`.
-- **Claude Code:** `claude mcp add --transport http --scope user decisions "$DECISIONS_URL/mcp" --header "Authorization: Bearer $DECISIONS_TOKEN"`, then `claude mcp list` should show `decisions` as connected.
+Name the server `decisions`. Use the URL `$DECISIONS_URL/mcp`. Without a header it uses OAuth (you log in through the browser once); the header variant `Authorization: Bearer <token>` is the non-interactive option.
+- **Claude Code:** `claude mcp add --transport http --scope user decisions "$DECISIONS_URL/mcp"` (OAuth; then run `/mcp` in Claude Code and authenticate in the browser), or with the key: `claude mcp add --transport http --scope user decisions "$DECISIONS_URL/mcp" --header "Authorization: Bearer $DECISIONS_TOKEN"`, then `claude mcp list` should show `decisions` as connected.
 - **Cursor:** merge into `~/.cursor/mcp.json` under `mcpServers`: `"decisions": { "url": "<DECISIONS_URL>/mcp", "headers": { "Authorization": "Bearer <token>" } }`.
 - **Antigravity:** find its MCP config file (usually `~/.gemini/antigravity/mcp_config.json`, but check before writing to it) and add the same entry in the format that file already uses.
 - If the agent's config file holds the token in plain text, tell me which file it's in.
