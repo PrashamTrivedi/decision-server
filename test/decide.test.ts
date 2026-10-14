@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { decide, traceOf } from '../src/decide'
-import { DecisionError } from '../src/errors'
+import { BothDownError, DecisionError, JevCircuitOpenError } from '../src/errors'
 import { ROUTE_TABLE } from '../src/routes'
 import { clefOut, fakeAi, jevFetch, jevOk, makeEnv, meta, noulAnswer, req } from './helpers'
 
@@ -332,5 +332,62 @@ describe('Jev circuit breaker', () => {
     expect(response.routeReason).toContain('emergency-paid')
     expect(f).toHaveBeenCalledTimes(3)
     expect(calls[0].options).toBeUndefined()
+  })
+})
+
+describe('Cloudflare Issues reporting (console.error vs warn)', () => {
+  let errSpy: any
+  let warnSpy: any
+  beforeEach(() => {
+    errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  const spendLimited = (call: any) => {
+    if (call.options?.gateway) throw new Error(`AiError: ${SPEND_LIMIT_BODY}`)
+    return clefOut(confident)
+  }
+  const jevDown = () => vi.fn(async () => new Response('down', { status: 503 })) as any
+  const bothDown = () => errSpy.mock.calls.filter((c: any[]) => c[0] instanceof BothDownError)
+
+  it('(a) rescued both-down logs BothDownError', async () => {
+    await run(fakeAi(spendLimited).ai, jevDown(), req(), meta({ decision: 'shell-safety' }))
+    const calls = bothDown()
+    expect(calls).toHaveLength(1)
+    expect(calls[0][0].message).toBe('both-down: clef spend-limit + jev unavailable')
+    expect(calls[0][1]).toMatchObject({ outcome: 'rescued', jevStatus: 502, servedBy: 'flash' })
+  })
+
+  it('(b) unrescued both-down logs the same BothDownError and returns 502', async () => {
+    const err = await run(fakeAi(spendLimited).ai, jevDown(), req(), meta({ decision: 'shell-safety' }), { EMERGENCY_PAID: 'off' }).catch((e) => e)
+    expect(err.status).toBe(502)
+    // EMERGENCY_PAID=off is not an attempted rescue; now make the paid call fail too.
+    errSpy.mockClear()
+    const failingPaid = (call: any) => {
+      if (call.options?.gateway) throw new Error(`AiError: ${SPEND_LIMIT_BODY}`)
+      throw new Error('paid down')
+    }
+    const err2 = await run(fakeAi(failingPaid).ai, jevDown(), req(), meta({ decision: 'shell-safety' })).catch((e) => e)
+    expect(err2).toBeInstanceOf(DecisionError)
+    const calls = bothDown()
+    expect(calls).toHaveLength(1)
+    expect(calls[0][0].message).toBe('both-down: clef spend-limit + jev unavailable')
+    expect(calls[0][1]).toMatchObject({ outcome: 'unrescued' })
+  })
+
+  it('(c) breaker opening logs JevCircuitOpenError', async () => {
+    const f = jevDown()
+    const failing = fakeAi(() => { throw new Error('x') }).ai
+    for (let i = 0; i < 3; i++) await run(failing, f, req(), meta({ decision: 'shell-safety' })).catch(() => {})
+    const calls = errSpy.mock.calls.filter((c: any[]) => c[0] instanceof JevCircuitOpenError)
+    expect(calls).toHaveLength(1)
+    expect(calls[0][0].message).toBe('jev circuit open')
+  })
+
+  it('a plain spend-limit hit served by Jev warns and does not error', async () => {
+    await run(fakeAi(spendLimited).ai, jevFetch(), req(), meta({ decision: 'shell-safety' }))
+    expect(warnSpy).toHaveBeenCalled()
+    expect(errSpy).not.toHaveBeenCalled()
   })
 })

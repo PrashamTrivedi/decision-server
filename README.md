@@ -25,6 +25,8 @@ Any Clef error, timeout, or incomplete answer falls back to Jev within the reque
 
 **Budget.** Clef calls go through the AI Gateway named by `AI_GATEWAY_ID` (default `default`). That gateway's spend-limit rules are the budget, and there's no counter in the server. If other tools share the gateway, they share its limit: when one trips it, the server falls back to Jev, and the other tools are locked out until it resets. On a Workers Paid plan with no gateway rule, usage past the free 10k neurons is billed at $0.011 per 1,000 instead of returning an error.
 
+**Issues.** Workers Issues is enabled (`observability.issues`). Hitting the spend limit or free quota only logs a `console.warn`. When the gateway limit blocks Clef and Jev also fails (or its circuit is open), the server logs `BothDownError` ("both-down: clef spend-limit + jev unavailable") via `console.error`, whether the paid emergency Clef call rescued the request or a 502/504 was returned. A tripped Jev circuit breaker logs `JevCircuitOpenError`. Messages are fixed so occurrences group into one Issue each; details (status, decision, tier) are attached as the second argument.
+
 **Media.** Embedded media goes only to `clef-omni`. On a Jev fallback the top-level `images`/`audio`/`videos` arrays are dropped, because Jev's API has no media fields. Calls with media are never shadowed. **Shadow.** With `SHADOW=on`, free-served calls are also sent to Jev in the background, and both answers are stored in `shadow_pairs` for the agreement stats.
 
 ## Setup

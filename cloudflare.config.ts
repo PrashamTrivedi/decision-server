@@ -6,7 +6,8 @@ export default defineConfig(({ isPreview }) => ({
     compatibilityDate: "2026-10-01",
     compatibilityFlags: ["nodejs_compat"],
     entrypoint: "src/index.ts",
-    observability: { enabled: true },
+    // Issues groups console.error(Error) calls, uncaught exceptions and 5xx; see src/AGENTS.md for what we log there.
+    observability: { enabled: true, issues: { enabled: true } },
     // Preview URLs for non-main branches (Workers Builds Previews).
     previewUrls: true,
     // Previews reject `domains`; they also skip the purge cron so only production runs it.

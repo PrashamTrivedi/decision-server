@@ -1,5 +1,5 @@
 import type { Env } from './env'
-import { DecisionError } from './errors'
+import { BothDownError, DecisionError } from './errors'
 import { extractMedia, type Media } from './media'
 import { callClef, ClefError, neuronsFor, type ClefTier } from './providers/clef'
 import { callJev, jevBreakerOpen, recordJev } from './providers/jev'
@@ -82,14 +82,23 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
   const emergency = async (reason: string, jevErr: DecisionError): Promise<DecisionOutcome> => {
     const tier: ClefTier = trace.mediaCount > 0 ? 'omni' : 'flash'
     const timeoutMs = meta.deadlineAt - now() - 50
-    if (timeoutMs < MIN_CLEF_MS) throw jevErr
+    const report = (outcome: string, extra: Record<string, unknown> = {}) =>
+      console.error(new BothDownError(), { outcome, decision: meta.decision, jevStatus: jevErr.status, jevError: jevErr.message, tier, ...extra })
+    if (timeoutMs < MIN_CLEF_MS) {
+      report('unrescued', { cause: 'no-time' })
+      throw jevErr
+    }
     try {
       const r = await callClef(env.AI, null, tier, cleanState, req.questions, trace.mediaCount > 0 ? media : null, timeoutMs)
       trace.neurons += r.neurons
       trace.fallbackReason = `${trace.fallbackReason ?? 'spend-limit'}+jev-${jevErr.status}`
+      report('rescued', { servedBy: tier })
       return finish(r.answers, r.model, r.inputTokens, tier, `${reason}+emergency-paid`)
     } catch (err) {
-      if (err instanceof ClefError) throw jevErr
+      if (err instanceof ClefError) {
+        report('unrescued', { cause: `clef-${err.kind}` })
+        throw jevErr
+      }
       throw err
     }
   }
@@ -147,7 +156,11 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
       // An abandoned call may still be billed: estimate input tokens (~4 chars each) at the tier's rate.
       if (err instanceof ClefError && err.kind === 'timeout') trace.neurons += neuronsFor(tier, Math.ceil(JSON.stringify({ state: st, questions: qs }).length / 4))
       // Gateway spend limit (15 min) or Workers AI free quota (until 00:00 UTC): stop wasting attempts in this isolate.
-      if (err instanceof ClefError && (err.kind === 'spend-limit' || err.kind === 'quota')) markSkip(err.kind, now())
+      if (err instanceof ClefError && (err.kind === 'spend-limit' || err.kind === 'quota')) {
+        markSkip(err.kind, now())
+        // Expected budget exhaustion: warn only, so it doesn't open a Workers Issue by itself.
+        console.warn(`clef budget hit: ${err.kind}`, { tier, decision: meta.decision })
+      }
       throw err
     }
   }

@@ -1,6 +1,6 @@
 import type { Answers, Questions } from '../schema'
 import { answersComplete } from '../schema'
-import { DecisionError } from '../errors'
+import { DecisionError, JevCircuitOpenError } from '../errors'
 import type { Env } from '../env'
 
 export const JEV_ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
@@ -26,7 +26,10 @@ export function jevBreakerOpen(now: number): boolean {
 }
 export function recordJev(ok: boolean, now: number): void {
   if (ok) breaker = { fails: 0, openUntil: 0 }
-  else if (++breaker.fails >= JEV_BREAKER_FAILS) breaker = { fails: 0, openUntil: now + JEV_BREAKER_OPEN_MS }
+  else if (++breaker.fails >= JEV_BREAKER_FAILS) {
+    breaker = { fails: 0, openUntil: now + JEV_BREAKER_OPEN_MS }
+    console.error(new JevCircuitOpenError(), { failures: JEV_BREAKER_FAILS, openMs: JEV_BREAKER_OPEN_MS })
+  }
 }
 export function resetJevBreaker(): void {
   breaker = { fails: 0, openUntil: 0 }

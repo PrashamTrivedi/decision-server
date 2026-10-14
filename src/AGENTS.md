@@ -20,4 +20,5 @@
 - **Shadow** runs only for free-served calls with no media and no `X-Replay`.
 - **Client errors are generic.** Detail goes to `console.error` and the D1 row.
 - **Route-table keys are real harness decision names.** MCP calls arrive as `mcp:<tool>`. Check `~/.claude/skills/jev-harness/decisions/*.ts` before adding one.
+- **console.error opens Cloudflare Issues; console.warn does not.** Only real failures get `console.error(new XError(), details)` with a STABLE message (`BothDownError`, `JevCircuitOpenError`; variable detail goes in the 2nd arg). Expected budget hits (2041, 4006) are `console.warn`, so daily exhaustion alone raises no Issue.
 - Keep routing, quota and schema logic as pure functions.
