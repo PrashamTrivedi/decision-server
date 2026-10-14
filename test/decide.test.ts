@@ -158,7 +158,7 @@ describe('fallback branches', () => {
     const { ai } = fakeAi(() => new Promise(() => {}))
     const f = jevFetch()
     const t0 = Date.now()
-    const { response, trace } = await run(ai, f, req(), meta({ decision: 'shell-safety' }, 1600))
+    const { response, trace } = await run(ai, f, req(), meta({ decision: 'shell-safety' }, 1900))
     expect(trace.fallbackReason).toBe('timeout')
     expect(response.servedBy).toBe('jev')
     expect(Date.now() - t0).toBeLessThan(1000)

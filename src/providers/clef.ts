@@ -1,6 +1,7 @@
 import type { AiLike } from '../env'
 import type { Media } from '../media'
 import { hasMedia } from '../media'
+import { classify } from '../quota'
 import type { Answers, Questions } from '../schema'
 import { answersComplete } from '../schema'
 import type { ProviderResult } from './jev'
@@ -18,7 +19,7 @@ export function neuronsFor(tier: ClefTier, inputTokens: number): number {
   return (inputTokens * CLEF_MODELS[tier].neuronsPerMTok) / 1e6
 }
 
-export type ClefErrorKind = 'timeout' | 'incomplete' | 'no-time' | 'error'
+export type ClefErrorKind = 'timeout' | 'incomplete' | 'no-time' | 'error' | 'spend-limit' | 'quota'
 
 export class ClefError extends Error {
   constructor(
@@ -67,7 +68,8 @@ export async function callClef(
     out = await Promise.race([ai.run(spec.id, input, { gateway: { id: gatewayId } }), timeout])
   } catch (err) {
     if (err instanceof ClefError) throw err
-    throw new ClefError('error', String((err as any)?.message ?? err), err)
+    const cls = classify(err)
+    throw new ClefError(cls === 'other' ? 'error' : cls, String((err as any)?.message ?? err), err)
   } finally {
     clearTimeout(timer)
   }

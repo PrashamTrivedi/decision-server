@@ -3,6 +3,7 @@ import { DecisionError } from './errors'
 import { extractMedia, type Media } from './media'
 import { callClef, ClefError, type ClefTier } from './providers/clef'
 import { callJev } from './providers/jev'
+import { markSkip, skipState } from './quota'
 import {
   buildRouterRequest,
   DEFAULT_ESCALATION,
@@ -101,13 +102,19 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
   }
 
   const clef = async (tier: ClefTier, st: unknown, qs: Questions, m: Media | null) => {
-    const r = await callClef(env.AI, env.AI_GATEWAY_ID, tier, st, qs, m, meta.deadlineAt - CLEF_RESERVE_MS - now())
-    trace.neurons += r.neurons
-    return r
+    try {
+      const r = await callClef(env.AI, env.AI_GATEWAY_ID, tier, st, qs, m, meta.deadlineAt - CLEF_RESERVE_MS - now())
+      trace.neurons += r.neurons
+      return r
+    } catch (err) {
+      // Gateway spend limit (15 min) or Workers AI free quota (until 00:00 UTC): stop wasting attempts in this isolate.
+      if (err instanceof ClefError && (err.kind === 'spend-limit' || err.kind === 'quota')) markSkip(err.kind, now())
+      throw err
+    }
   }
 
   try {
-    const decision = route({ model: req.model, decision: meta.decision, media, skipClef: false })
+    const decision = route({ model: req.model, decision: meta.decision, media, skipClef: skipState(now()).active })
     let tier: Tier
     let reason: string
     let escalate = false
