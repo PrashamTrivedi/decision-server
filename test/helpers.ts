@@ -1,11 +1,12 @@
 import type { Env } from '../src/env'
+import { makeD1 } from './d1fake'
 
 export const TOKEN = 'test-token'
 
 export function makeEnv(over: Partial<Env> = {}): Env {
   return {
     AI: { run: async () => { throw new Error('AI not stubbed') } },
-    DB: undefined as unknown as D1Database,
+    DB: makeD1(),
     DECISIONS_TOKEN: TOKEN,
     TYPESAFE_API_KEY: 'jev-key',
     AI_GATEWAY_ID: 'default',

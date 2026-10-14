@@ -7,13 +7,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "db:migrate": "wrangler d1 migrations apply decisions-db",
+    "dev": "cf dev",
+    "deploy": "cf deploy",
+    "typecheck": "cf workers types && tsc --noEmit",
     "type-check": "tsc --noEmit",
+    "db:migrate": "cf d1 migrations apply \"$DECISIONS_DB_ID\"",
+    "db:migrate:local": "cf d1 migrations apply --local decisions-db",
     "test": "vitest",
     "test:run": "vitest run",
-    "cf-typegen": "wrangler types",
     "replay": "bun scripts/replay.ts"
   },
   "dependencies": {
@@ -25,9 +26,9 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260929.1",
     "@types/node": "^22.0.0",
+    "cf": "1.0.0-beta.5",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4",
-    "wrangler": "^4.143.0"
+    "vitest": "^3.2.4"
   },
   "license": "MIT"
 }
