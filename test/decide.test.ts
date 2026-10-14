@@ -217,6 +217,14 @@ describe('fallback branches', () => {
     const err = await run(ai, slow, req(), meta({ decision: 'shell-safety' }, 1500)).catch((e) => e)
     expect(err.status).toBe(504)
   })
+  it('Jev body that stalls past the deadline -> 504', async () => {
+    const { ai } = fakeAi(() => { throw new Error('x') })
+    const stall = ((_u: string, init: any) => Promise.resolve(new Response(new ReadableStream({
+      start(c) { init.signal.addEventListener('abort', () => c.error(Object.assign(new Error('a'), { name: 'AbortError' }))) },
+    }), { status: 200 }))) as any
+    const err = await run(ai, stall, req(), meta({ decision: 'shell-safety' }, 1500)).catch((e) => e)
+    expect(err.status).toBe(504)
+  })
   it('Jev 429 once then success', async () => {
     let n = 0
     const f = (async () => (++n === 1 ? new Response('', { status: 429, headers: { 'retry-after': '0.01' } }) : jevOk(noulAnswer))) as any

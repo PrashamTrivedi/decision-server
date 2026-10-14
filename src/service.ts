@@ -27,9 +27,12 @@ export async function runDecision(env: Env, waiter: Waiter, req: DecisionRequest
     )
     return outcome
   } catch (err) {
-    const de = err instanceof DecisionError ? err : new DecisionError(`internal: ${(err as any)?.message ?? err}`, 502)
+    // Unexpected errors: full detail goes to the console and the D1 row, never to the client.
+    if (!(err instanceof DecisionError)) console.error('decide failed', err)
+    const detail = err instanceof DecisionError ? err.message : `internal: ${(err as any)?.message ?? err}`
+    const de = err instanceof DecisionError ? err : new DecisionError('internal error', 502)
     const trace = traceOf(de) ?? { routeReason: '', inputTokens: 0, neurons: 0, mediaCount: 0 }
-    log(insertCall(env.DB, buildRow({ id, now: now(), meta, req, trace, answers: null, error: de.message })))
+    log(insertCall(env.DB, buildRow({ id, now: now(), meta, req, trace, answers: null, error: detail })))
     throw de
   }
 }

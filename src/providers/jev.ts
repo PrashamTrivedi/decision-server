@@ -28,7 +28,9 @@ export async function callJev(
   fetchFn: FetchFn = fetch,
 ): Promise<ProviderResult> {
   if (!env.TYPESAFE_API_KEY) throw new DecisionError('TYPESAFE_API_KEY not configured', 502)
-  const body = JSON.stringify({ ...original, model: JEV_MODEL })
+  // Jev's API takes only model/state/questions; Clef-only media arrays are dropped.
+  const { images: _i, audio: _a, videos: _v, ...rest } = original
+  const body = JSON.stringify({ ...rest, model: JEV_MODEL })
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = deadlineAt - Date.now()

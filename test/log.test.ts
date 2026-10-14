@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from '../src/app'
 import { agreeAt } from '../src/agreement'
 import { purge } from '../src/log'
@@ -194,11 +194,14 @@ describe('retention purge', () => {
 describe('review pass 1 fixes', () => {
   const mediaBody = JSON.stringify({ model: 'auto', state: { command: 'ls' }, questions: noulQ, images: ['data:image/png;base64,AAAA'], extra: 1 })
 
-  it('Jev fallback forwards the original body (state, media, extra fields), model forced', async () => {
+  it('Jev fallback forwards the original body minus Clef-only media arrays, model forced', async () => {
     const s = setup({ ai: () => { throw new Error('x') } })
     await s.app.request('/v1/systemone', { method: 'POST', headers: { ...auth, 'X-Decision': 'shell-safety' }, body: mediaBody }, s.env, s.ctx as any)
     const sent = JSON.parse((s.fetchMock.mock.calls[0] as any)[1].body)
-    expect(sent).toMatchObject({ model: 'jev-latest', state: { command: 'ls' }, images: ['data:image/png;base64,AAAA'], extra: 1 })
+    expect(sent).toMatchObject({ model: 'jev-latest', state: { command: 'ls' }, extra: 1 })
+    expect(sent).not.toHaveProperty('images')
+    expect(sent).not.toHaveProperty('audio')
+    expect(sent).not.toHaveProperty('videos')
   })
 
   it('never shadows a call with media', async () => {
@@ -209,14 +212,20 @@ describe('review pass 1 fixes', () => {
     expect(s.fetchMock).not.toHaveBeenCalled()
   })
 
-  it('non-DecisionError is logged and returns generic 500', async () => {
+  it('non-DecisionError inside decide() is logged with detail and returns a generic 502', async () => {
     const s = setup()
-    s.env.AI = { run: async () => { throw new Error('secret boom') } } as any
-    const app = createApp({ deps: { fetch: (() => { throw new TypeError('secret boom') }) as any } })
-    const res = await app.request('/v1/systemone', { method: 'POST', headers: { ...auth, 'X-Decision': 'shell-safety' }, body }, s.env, s.ctx as any)
-    expect(res.status).toBe(502)
-    await s.ctx.flush()
-    expect(s.db.raw.prepare('SELECT COUNT(*) c FROM calls').get()).toEqual({ c: 1 })
+    Object.defineProperty(s.env, 'AI_GATEWAY_ID', { get() { throw new TypeError('secret boom') } })
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const res = await s.app.request('/v1/systemone', { method: 'POST', headers: { ...auth, 'X-Decision': 'shell-safety' }, body }, s.env, s.ctx as any)
+      expect(res.status).toBe(502)
+      expect(JSON.stringify(await res.json())).not.toContain('secret boom')
+      await s.ctx.flush()
+      expect(s.db.raw.prepare('SELECT error FROM calls').get()).toEqual({ error: 'internal: secret boom' })
+      expect(err).toHaveBeenCalledWith('decide failed', expect.any(TypeError))
+    } finally {
+      err.mockRestore()
+    }
   })
 
   it('onError hides the message', async () => {
