@@ -5,6 +5,10 @@
 #
 # Usage: OWNER_EMAIL=you@example.com HOST=decisions.example.com bash scripts/setup-access.sh
 # Prints the whole-host app's AUD tag: put it in cloudflare.config.ts as ACCESS_AUD.
+#
+# Previews: `bash scripts/setup-access.sh --previews` creates only the owner-only app for branch preview URLs
+# (*-<worker>.<subdomain>.workers.dev) and prints its AUD: put it in cloudflare.config.ts as PREVIEW_ACCESS_AUD.
+#   PREVIEW_HOST defaults to *-decision-server.dev-286.workers.dev
 set -euo pipefail
 : "${OWNER_EMAIL:?set OWNER_EMAIL (the only identity allowed to log in)}"
 HOST="${HOST:-decisions.prashamhtrivedi.app}"
@@ -21,6 +25,18 @@ host=$(jq -nc --arg h "$HOST" --arg e "$OWNER_EMAIL" '{
   session_duration: "24h", app_launcher_visible: false,
   policies: [{ name: "Owner only", decision: "allow", include: [{ email: { email: $e } }] }]
 }')
+
+if [ "${1:-}" = "--previews" ]; then
+  PREVIEW_HOST="${PREVIEW_HOST:-*-decision-server.dev-286.workers.dev}"
+  previews=$(jq -nc --arg h "$PREVIEW_HOST" --arg e "$OWNER_EMAIL" '{
+    name: "decision-server previews", type: "self_hosted", domain: $h, self_hosted_domains: [$h],
+    session_duration: "24h", app_launcher_visible: false,
+    policies: [{ name: "Owner only", decision: "allow", include: [{ email: { email: $e } }] }]
+  }')
+  echo "Creating owner-only app for preview URLs ($PREVIEW_HOST)..."
+  bunx cf zero-trust access applications create --body "$previews" | jq -r '"PREVIEW_ACCESS_AUD=" + .aud'
+  exit 0
+fi
 
 echo "Creating bypass app for machine paths..."
 bunx cf zero-trust access applications create --body "$bypass" | jq -c '{id, name, self_hosted_domains}'

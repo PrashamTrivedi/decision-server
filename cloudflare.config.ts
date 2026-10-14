@@ -1,5 +1,8 @@
 import { bindings, defineConfig, triggers } from "cf/config";
 
+// AUD of the "decision-server previews" Access app (scripts/setup-access.sh --previews). Placeholder = login off on previews (key only).
+const PREVIEW_ACCESS_AUD = "REPLACE_WITH_ACCESS_AUD";
+
 export default defineConfig(({ isPreview }) => ({
   worker: {
     name: "decision-server",
@@ -25,7 +28,8 @@ export default defineConfig(({ isPreview }) => ({
       RETENTION_DAYS: bindings.text("30"),
       // Cloudflare Access (see scripts/setup-access.sh). Access JWT path is off if ACCESS_AUD is empty or the REPLACE_WITH_ACCESS_AUD placeholder.
       ACCESS_TEAM_DOMAIN: bindings.text("prasham-dev.cloudflareaccess.com"),
-      ACCESS_AUD: bindings.text("8faf8eb1d36b8aefd8e887efbc36c2b2d14a607dfdeb6129f59be9bce0f08d2e"),
+      // Previews live on *-decision-server.dev-286.workers.dev behind their own Access app, so they verify its AUD.
+      ACCESS_AUD: bindings.text(isPreview ? PREVIEW_ACCESS_AUD : "8faf8eb1d36b8aefd8e887efbc36c2b2d14a607dfdeb6129f59be9bce0f08d2e"),
       DECISIONS_TOKEN: bindings.secret(),
       TYPESAFE_API_KEY: bindings.secret(),
     },
