@@ -391,3 +391,38 @@ describe('Cloudflare Issues reporting (console.error vs warn)', () => {
     expect(errSpy).not.toHaveBeenCalled()
   })
 })
+
+describe('both-down is always reported as one Cloudflare Issue', () => {
+  const jevDown = (async () => new Response('down', { status: 503 })) as any
+  const expectBothDown = (spy: any, cause: string) => {
+    const call = spy.mock.calls.find((c: any[]) => c[0] instanceof BothDownError)
+    expect(call, 'BothDownError logged').toBeTruthy()
+    expect(call[0].message).toBe('both-down: clef spend-limit + jev unavailable')
+    expect(call[1]).toMatchObject({ outcome: 'unrescued', cause })
+  }
+  it('free quota (4006) + Jev down', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      markSkip('quota', Date.now())
+      const err = await run(fakeAi(() => clefOut(confident)).ai, jevDown, req(), meta({ decision: 'shell-safety' })).catch((e) => e)
+      expect(err.status).toBe(502)
+      expectBothDown(spy, 'quota')
+    } finally { spy.mockRestore() }
+  })
+  it('spend limit + Jev down with EMERGENCY_PAID=off', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      markSkip('spend-limit', Date.now())
+      const err = await run(fakeAi(() => clefOut(confident)).ai, jevDown, req(), meta({ decision: 'shell-safety' }), { EMERGENCY_PAID: 'off' }).catch((e) => e)
+      expect(err.status).toBe(502)
+      expectBothDown(spy, 'emergency-off')
+    } finally { spy.mockRestore() }
+  })
+  it('Jev down without any budget block is not a both-down', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await run(fakeAi(() => { throw new Error('x') }).ai, jevDown, req(), meta({ decision: 'shell-safety' })).catch(() => {})
+      expect(spy.mock.calls.some((c: any[]) => c[0] instanceof BothDownError)).toBe(false)
+    } finally { spy.mockRestore() }
+  })
+})

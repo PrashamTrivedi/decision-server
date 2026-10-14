@@ -79,11 +79,19 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
   // Not for the free quota (4006): that is account-wide, so bypassing the gateway doesn't help.
   const emergencyEligible = () => env.EMERGENCY_PAID !== 'off' && skipState(now()).kind === 'spend-limit'
 
+  // Every both-down case (Clef budget-blocked and Jev failing) is one Cloudflare Issue, rescued or not.
+  const reportBothDown = (jevErr: DecisionError, outcome: string, extra: Record<string, unknown> = {}) =>
+    console.error(new BothDownError(), { outcome, decision: meta.decision, budget: skipState(now()).kind, jevStatus: jevErr.status, jevError: jevErr.message, ...extra })
+  /** Jev failed; if Clef is budget-blocked but no rescue is allowed (free quota, or EMERGENCY_PAID=off), report and rethrow. */
+  const unrescuable = (jevErr: DecisionError): never => {
+    if (skipState(now()).active) reportBothDown(jevErr, 'unrescued', { cause: env.EMERGENCY_PAID === 'off' ? 'emergency-off' : 'quota' })
+    throw jevErr
+  }
+
   const emergency = async (reason: string, jevErr: DecisionError): Promise<DecisionOutcome> => {
     const tier: ClefTier = trace.mediaCount > 0 ? 'omni' : 'flash'
     const timeoutMs = meta.deadlineAt - now() - 50
-    const report = (outcome: string, extra: Record<string, unknown> = {}) =>
-      console.error(new BothDownError(), { outcome, decision: meta.decision, jevStatus: jevErr.status, jevError: jevErr.message, tier, ...extra })
+    const report = (outcome: string, extra: Record<string, unknown> = {}) => reportBothDown(jevErr, outcome, { tier, ...extra })
     if (timeoutMs < MIN_CLEF_MS) {
       report('unrescued', { cause: 'no-time' })
       throw jevErr
@@ -110,7 +118,7 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
     if (jevBreakerOpen(now())) {
       const open = new DecisionError('jev unavailable (circuit open)', 502)
       if (eligible) return emergency(reason, open)
-      throw open
+      return unrescuable(open)
     }
     try {
       const r = await callJev(env, req, req.questions, eligible ? meta.deadlineAt - EMERGENCY_RESERVE_MS : meta.deadlineAt, deps.fetch)
@@ -122,7 +130,7 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
       if (!(err instanceof DecisionError)) throw err
       recordJev(false, now())
       if (eligible) return emergency(reason, err)
-      throw err
+      return unrescuable(err)
     }
   }
 
