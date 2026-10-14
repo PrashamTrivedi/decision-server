@@ -1,0 +1,21 @@
+{
+  // Cursor Cloud Agent environment (https://cursor.com/docs/cloud-agent/setup)
+  // Runtime: bun + cf CLI via ghcr.io/prashamtrivedi/cursor-dev-setup:v1.4.0 (skills/commands baked in,
+  // Jev harness pointed at decisions.prashamhtrivedi.app).
+  // Secrets cannot live in this file — add these names in the Cursor dashboard Secrets tab:
+  // DECISIONS_TOKEN, TYPESAFE_API_KEY
+  // `start` writes them into the gitignored .dev.vars that `cf dev` reads. Local D1 only; never deploys.
+  "name": "decision-server",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "/opt/prasham-cursor/bin/materialize-cursor-harness.sh && bun install",
+  "start": "export BUN_INSTALL=\"$HOME/.bun\"; export PATH=\"$BUN_INSTALL/bin:$PATH\"; umask 077; printf 'DECISIONS_TOKEN=%s\\nTYPESAFE_API_KEY=%s\\n' \"$DECISIONS_TOKEN\" \"$TYPESAFE_API_KEY\" > .dev.vars; bun run db:migrate:local && bun run dev",
+  "ports": [
+    {
+      "name": "worker",
+      "port": 5173
+    }
+  ]
+}

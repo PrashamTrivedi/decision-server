@@ -18,6 +18,8 @@ bun run dev            # cf dev
 
 `src/` Worker code · `test/` vitest suite · `scripts/` local replay tooling · `migrations/` D1 schema · `docs/` agent setup prompt · `taskNotes/` plans and validation records.
 
+Cursor Cloud Agents use `.cursor/environment.json` (image `cursor-dev-setup:v1.4.0`; secrets `DECISIONS_TOKEN`, `TYPESAFE_API_KEY` in the Cursor dashboard). Each pushed branch also gets a Worker Preview at `https://<branch-slug>-decision-server.dev-286.workers.dev`.
+
 ## Conventions
 
 - TypeScript strict, Hono, zod 4.
