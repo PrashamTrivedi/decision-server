@@ -22,7 +22,7 @@ Latency is not a driver. It only has to stay no worse than today.
 1. The harness sends each decision to one endpoint that speaks Jev's format. The harness side needs a small change: a configurable endpoint, and passing the decision type and mode along, which Jev never needed. Removing that one setting rolls back to Jev.
 1a. The same server is also offered as a remote MCP server, so agents without the harness can ask for decisions, check the budget and see stats.
 2. Every call is triaged by a small, cheap model. It either answers on its own (light decision types), passes the call to a stronger free model (heavy types), or sends it to Jev.
-3. Calls with image or audio payloads (e.g. screenshot-gate) go to the multimodal model.
+3. Calls with image or audio payloads go to the multimodal model. No harness decision sends media today. screenshot-gate only sends text about the screenshot request, so it uses the light model. Media can only come from ad-hoc or MCP calls. When such a call falls back to Jev, Jev gets the original request unchanged, and media calls are never shadowed.
 4. For now the server shares pi's existing daily spending limit on Cloudflare. Either one can use up the shared limit for both, and a separate limit can come later. When Cloudflare says that limit or the account's free allowance is used up, calls go to Jev until it frees up again.
 5. The server doesn't keep its own budget count. Cloudflare's limit is the measure, and it works the same on free and paid Cloudflare plans.
 6. If a free model errors or times out, the call goes to Jev.
