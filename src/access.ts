@@ -3,6 +3,8 @@ import type { Env } from './env'
 const PLACEHOLDER = 'REPLACE_WITH_ACCESS_AUD'
 const KEY_TTL_MS = 5 * 60_000
 const SKEW_S = 60
+/** Unknown kids can be sent by anyone, so a forced refetch for rotation happens at most this often. */
+const REFETCH_MIN_MS = 30_000
 
 /** Test seam: replaces the certs fetch. */
 export interface AccessDeps {
@@ -15,7 +17,8 @@ export interface AccessIdentity {
 
 interface KeyCache { at: number; keys: Map<string, CryptoKey> }
 const cache = new Map<string, KeyCache>()
-export const resetAccessCache = () => cache.clear()
+const lastForced = new Map<string, number>()
+export const resetAccessCache = () => { cache.clear(); lastForced.clear() }
 
 /** Fail closed: with no real audience configured the Access path is off and only the decision key works. */
 export function accessEnabled(env: Pick<Env, 'ACCESS_AUD' | 'ACCESS_TEAM_DOMAIN'>): boolean {
@@ -68,7 +71,11 @@ export async function verifyAccess(env: Env, req: Request, deps?: AccessDeps): P
     let fresh = false
     if (!entry || Date.now() - entry.at > KEY_TTL_MS) { entry = await loadKeys(team, f); fresh = true }
     let key = entry.keys.get(header.kid)
-    if (!key && !fresh) { entry = await loadKeys(team, f); key = entry.keys.get(header.kid) } // rotation: refetch once
+    if (!key && !fresh && Date.now() - (lastForced.get(team) ?? 0) >= REFETCH_MIN_MS) {
+      lastForced.set(team, Date.now()) // rotation: refetch once, throttled
+      entry = await loadKeys(team, f)
+      key = entry.keys.get(header.kid)
+    }
     if (!key) return null
 
     const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlBytes(parts[2]), new TextEncoder().encode(`${parts[0]}.${parts[1]}`))

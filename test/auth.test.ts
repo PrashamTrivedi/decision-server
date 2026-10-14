@@ -85,9 +85,19 @@ describe('Access JWT', () => {
     expect(s.certs).toHaveBeenCalledTimes(1)
     expect((await s.get('/v1/budget', jwtH(await sign({}, { kid: 'nope' })))).status).toBe(401)
     expect(s.certs).toHaveBeenCalledTimes(2) // one refetch
+    // A flood of unknown kids inside the throttle window causes no more fetches.
+    for (let i = 0; i < 5; i++) expect((await s.get('/v1/budget', jwtH(await sign({}, { kid: `junk${i}` })))).status).toBe(401)
+    expect(s.certs).toHaveBeenCalledTimes(2)
     rotated = true
-    expect((await s.get('/v1/budget', jwtH(await sign({}, { kid: 'k2' })))).status).toBe(200)
-    expect(s.certs).toHaveBeenCalledTimes(3)
+    const t = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(t + 30_001)
+      expect((await s.get('/v1/budget', jwtH(await sign({}, { kid: 'k2' })))).status).toBe(200)
+      expect(s.certs).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('placeholder or empty ACCESS_AUD disables the JWT path (key still works)', async () => {
