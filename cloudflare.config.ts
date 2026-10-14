@@ -19,6 +19,7 @@ export default defineConfig(({ isPreview }) => ({
       DB: bindings.d1({ name: "decisions-db", id: "4e152711-4afd-4482-868c-b98df3e6ef35" }),
       AI_GATEWAY_ID: bindings.text("default"),
       SHADOW: bindings.text("off"),
+      EMERGENCY_PAID: bindings.text("on"),
       RETENTION_DAYS: bindings.text("30"),
       DECISIONS_TOKEN: bindings.secret(),
       TYPESAFE_API_KEY: bindings.secret(),

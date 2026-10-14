@@ -16,6 +16,22 @@ export interface ProviderResult {
 
 type FetchFn = typeof fetch
 
+/** Per-isolate circuit breaker: after JEV_BREAKER_FAILS consecutive failures, skip Jev for JEV_BREAKER_OPEN_MS. */
+export const JEV_BREAKER_FAILS = 3
+export const JEV_BREAKER_OPEN_MS = 30_000
+let breaker = { fails: 0, openUntil: 0 }
+
+export function jevBreakerOpen(now: number): boolean {
+  return breaker.openUntil > now
+}
+export function recordJev(ok: boolean, now: number): void {
+  if (ok) breaker = { fails: 0, openUntil: 0 }
+  else if (++breaker.fails >= JEV_BREAKER_FAILS) breaker = { fails: 0, openUntil: now + JEV_BREAKER_OPEN_MS }
+}
+export function resetJevBreaker(): void {
+  breaker = { fails: 0, openUntil: 0 }
+}
+
 /**
  * Calls Jev with the caller's original request body (model forced to jev-latest) and whatever time remains. One 429 retry inside the deadline (same as the harness client).
  * Throws DecisionError(504) on deadline, DecisionError(502) on everything else.

@@ -14,6 +14,8 @@ export interface Env {
   AI_GATEWAY_ID: string
   /** "on" enables live shadow comparison against Jev. */
   SHADOW?: string
+  /** 'off' disables the paid, gateway-bypassing Clef call used when the spend limit and Jev both fail. Default on. */
+  EMERGENCY_PAID?: string
   RETENTION_DAYS?: string
   VERSION?: string
 }

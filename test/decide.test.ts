@@ -258,3 +258,79 @@ describe('answersComplete strictness', () => {
     }
   })
 })
+
+import { JEV_BREAKER_OPEN_MS } from '../src/providers/jev'
+import { markSkip, SPEND_LIMIT_BODY } from '../src/quota'
+
+describe('both down: spend limit + Jev failure', () => {
+  const spendLimited = (call: any) => {
+    if (call.options?.gateway) throw new Error(`AiError: ${SPEND_LIMIT_BODY}`)
+    return clefOut(confident)
+  }
+  const jevDown = vi.fn(async () => new Response('down', { status: 503 })) as any
+
+  it('falls back to one paid Clef call outside the gateway', async () => {
+    const { ai, calls } = fakeAi(spendLimited)
+    const { response, trace } = await run(ai, jevDown, req(), meta({ decision: 'shell-safety' }))
+    expect(response.servedBy).toBe('flash')
+    expect(response.routeReason).toContain('+emergency-paid')
+    expect(trace.fallbackReason).toBe('spend-limit+jev-502')
+    expect(calls).toHaveLength(2)
+    expect(calls[0].options?.gateway).toBeTruthy()
+    expect(calls[1].options).toBeUndefined()
+  })
+
+  it('EMERGENCY_PAID=off keeps the 502', async () => {
+    const { ai } = fakeAi(spendLimited)
+    const err = await run(ai, jevDown, req(), meta({ decision: 'shell-safety' }), { EMERGENCY_PAID: 'off' }).catch((e) => e)
+    expect(err).toBeInstanceOf(DecisionError)
+    expect(err.status).toBe(502)
+  })
+
+  it('free quota (4006) + Jev down stays 502: bypassing the gateway cannot help', async () => {
+    markSkip('quota', Date.now())
+    const { ai, calls } = fakeAi(() => clefOut(confident))
+    const err = await run(ai, jevDown, req(), meta({ decision: 'shell-safety' })).catch((e) => e)
+    expect(err.status).toBe(502)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('Jev success after a spend limit needs no emergency call', async () => {
+    const { ai, calls } = fakeAi(spendLimited)
+    const { response } = await run(ai, jevFetch(), req(), meta({ decision: 'shell-safety' }))
+    expect(response.servedBy).toBe('jev')
+    expect(calls).toHaveLength(1)
+  })
+})
+
+describe('Jev circuit breaker', () => {
+  it('opens after 3 failures, skips Jev while open, retries after it closes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    try {
+      const f = vi.fn(async () => new Response('down', { status: 503 })) as any
+      const clefFails = () => fakeAi(() => { throw new Error('x') }).ai
+      for (let i = 0; i < 3; i++) await run(clefFails(), f, req(), meta({ decision: 'shell-safety' })).catch(() => {})
+      expect(f).toHaveBeenCalledTimes(3)
+      const open = await run(clefFails(), f, req(), meta({ decision: 'shell-safety' })).catch((e) => e)
+      expect(open.status).toBe(502)
+      expect(f).toHaveBeenCalledTimes(3)
+      vi.setSystemTime(Date.now() + JEV_BREAKER_OPEN_MS + 1)
+      await run(clefFails(), f, req(), meta({ decision: 'shell-safety' })).catch(() => {})
+      expect(f).toHaveBeenCalledTimes(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('open breaker + spend limit goes straight to the paid Clef call', async () => {
+    const f = vi.fn(async () => new Response('down', { status: 503 })) as any
+    const { ai: failing } = fakeAi(() => { throw new Error('x') })
+    for (let i = 0; i < 3; i++) await run(failing, f, req(), meta({ decision: 'shell-safety' })).catch(() => {})
+    markSkip('spend-limit', Date.now())
+    const { ai, calls } = fakeAi(() => clefOut(confident))
+    const { response } = await run(ai, f, req(), meta({ decision: 'shell-safety' }))
+    expect(response.routeReason).toContain('emergency-paid')
+    expect(f).toHaveBeenCalledTimes(3)
+    expect(calls[0].options).toBeUndefined()
+  })
+})

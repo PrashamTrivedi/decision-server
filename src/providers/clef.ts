@@ -43,7 +43,8 @@ export interface ClefResult extends ProviderResult {
  */
 export async function callClef(
   ai: AiLike,
-  gatewayId: string,
+  /** null calls Workers AI directly, outside the gateway and its spend rules (billed at paid rates). */
+  gatewayId: string | null,
   tier: ClefTier,
   state: unknown,
   questions: Questions,
@@ -65,7 +66,7 @@ export async function callClef(
   })
   let out: any
   try {
-    out = await Promise.race([ai.run(spec.id, input, { gateway: { id: gatewayId } }), timeout])
+    out = await Promise.race([(gatewayId === null ? ai.run(spec.id, input) : ai.run(spec.id, input, { gateway: { id: gatewayId } })), timeout])
   } catch (err) {
     if (err instanceof ClefError) throw err
     const cls = classify(err)

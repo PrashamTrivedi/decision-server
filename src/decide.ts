@@ -2,7 +2,7 @@ import type { Env } from './env'
 import { DecisionError } from './errors'
 import { extractMedia, type Media } from './media'
 import { callClef, ClefError, neuronsFor, type ClefTier } from './providers/clef'
-import { callJev } from './providers/jev'
+import { callJev, jevBreakerOpen, recordJev } from './providers/jev'
 import { markSkip, skipState } from './quota'
 import {
   buildRouterRequest,
@@ -54,6 +54,8 @@ export interface Deps {
 /** Free model gets `deadline - 1200ms`; the rest is kept for the Jev fallback. */
 export const CLEF_RESERVE_MS = 1200
 export const MIN_CLEF_MS = 250
+/** Held back from Jev when the paid emergency Clef call may be needed after it. */
+export const EMERGENCY_RESERVE_MS = 800
 
 class TracedError extends DecisionError {
   constructor(base: DecisionError, readonly trace: Trace) {
@@ -73,13 +75,46 @@ export async function decide(env: Env, req: DecisionRequest, meta: DecisionMeta,
   const { media, state: cleanState } = extractMedia(req.state, req as any)
   const trace: Trace = { routeReason: '', inputTokens: 0, neurons: 0, mediaCount: media.images.length + media.audio.length + media.videos.length }
 
+  // Both down: the gateway spend limit blocks Clef and Jev fails. One paid Clef call outside the gateway.
+  // Not for the free quota (4006): that is account-wide, so bypassing the gateway doesn't help.
+  const emergencyEligible = () => env.EMERGENCY_PAID !== 'off' && skipState(now()).kind === 'spend-limit'
+
+  const emergency = async (reason: string, jevErr: DecisionError): Promise<DecisionOutcome> => {
+    const tier: ClefTier = trace.mediaCount > 0 ? 'omni' : 'flash'
+    const timeoutMs = meta.deadlineAt - now() - 50
+    if (timeoutMs < MIN_CLEF_MS) throw jevErr
+    try {
+      const r = await callClef(env.AI, null, tier, cleanState, req.questions, trace.mediaCount > 0 ? media : null, timeoutMs)
+      trace.neurons += r.neurons
+      trace.fallbackReason = `${trace.fallbackReason ?? 'spend-limit'}+jev-${jevErr.status}`
+      return finish(r.answers, r.model, r.inputTokens, tier, `${reason}+emergency-paid`)
+    } catch (err) {
+      if (err instanceof ClefError) throw jevErr
+      throw err
+    }
+  }
+
   const callJevNow = async (reason: string, fallbackReason?: string): Promise<DecisionOutcome> => {
     trace.routeReason = reason
     if (fallbackReason) trace.fallbackReason = fallbackReason
-    const r = await callJev(env, req, req.questions, meta.deadlineAt, deps.fetch)
-    trace.model = r.model
-    trace.inputTokens = r.inputTokens
-    return finish(r.answers, r.model, r.inputTokens, 'jev', reason)
+    const eligible = emergencyEligible()
+    if (jevBreakerOpen(now())) {
+      const open = new DecisionError('jev unavailable (circuit open)', 502)
+      if (eligible) return emergency(reason, open)
+      throw open
+    }
+    try {
+      const r = await callJev(env, req, req.questions, eligible ? meta.deadlineAt - EMERGENCY_RESERVE_MS : meta.deadlineAt, deps.fetch)
+      recordJev(true, now())
+      trace.model = r.model
+      trace.inputTokens = r.inputTokens
+      return finish(r.answers, r.model, r.inputTokens, 'jev', reason)
+    } catch (err) {
+      if (!(err instanceof DecisionError)) throw err
+      recordJev(false, now())
+      if (eligible) return emergency(reason, err)
+      throw err
+    }
   }
 
   const finish = (answers: Answers, model: string, tokens: number, servedBy: Tier, routeReason: string): DecisionOutcome => {
