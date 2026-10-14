@@ -47,9 +47,15 @@ describe('either escalation', () => {
   })
   it('no escalation with under 1500ms left', async () => {
     const { ai, calls } = fakeAi(() => clefOut(ambiguous))
-    const { response } = await run(ai, jevFetch(), req(), meta({ decision: 'semantic-lint' }, 1450))
-    expect(calls).toHaveLength(1)
-    expect(response.servedBy).toBe('flash')
+    // Frozen clock: 1450ms leaves exactly MIN_CLEF_MS for flash, and too little to escalate.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    try {
+      const { response } = await run(ai, jevFetch(), req(), meta({ decision: 'semantic-lint' }, 1450))
+      expect(calls).toHaveLength(1)
+      expect(response.servedBy).toBe('flash')
+    } finally {
+      vi.useRealTimers()
+    }
   })
   it('failed escalation keeps the valid flash answer', async () => {
     const { ai } = fakeAi((_c, n) => { if (n === 1) return clefOut(ambiguous); throw new Error('boom') })
