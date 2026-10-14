@@ -1,0 +1,33 @@
+{
+  "name": "decision-server",
+  "version": "0.1.0",
+  "description": "Jev-compatible decision endpoint: free Workers AI Clef first, Jev fallback. REST + remote MCP.",
+  "main": "src/index.ts",
+  "engines": { "node": ">=22" },
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply decisions-db",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "cf-typegen": "wrangler types",
+    "replay": "bun scripts/replay.ts"
+  },
+  "dependencies": {
+    "agents": "^0.20.1",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "hono": "^4.12.17",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260929.1",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.143.0"
+  },
+  "license": "MIT"
+}

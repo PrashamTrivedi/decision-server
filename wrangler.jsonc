@@ -1,0 +1,24 @@
+{
+  "name": "decision-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "ai": { "binding": "AI" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "decisions-db",
+      // Replace after `wrangler d1 create decisions-db`.
+      "database_id": "REPLACE_AFTER_D1_CREATE"
+    }
+  ],
+  "triggers": { "crons": ["17 3 * * *"] },
+  "routes": [{ "pattern": "decisions.prashamhtrivedi.app", "custom_domain": true }],
+  "vars": {
+    "AI_GATEWAY_ID": "default",
+    "SHADOW": "off",
+    "RETENTION_DAYS": "30",
+    "VERSION": "0.1.0"
+  }
+}
