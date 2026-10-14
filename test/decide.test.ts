@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { decide, traceOf } from '../src/decide'
 import { DecisionError } from '../src/errors'
 import { ROUTE_TABLE } from '../src/routes'
@@ -157,12 +157,19 @@ describe('fallback branches', () => {
   it('clef timeout (deadline - 1200ms) -> Jev with the time that remains', async () => {
     const { ai } = fakeAi(() => new Promise(() => {}))
     const f = jevFetch()
-    const t0 = Date.now()
-    const { response, trace } = await run(ai, f, req(), meta({ decision: 'shell-safety' }, 1900))
-    expect(trace.fallbackReason).toBe('timeout')
-    expect(response.servedBy).toBe('jev')
-    expect(Date.now() - t0).toBeLessThan(1000)
-    expect(f).toHaveBeenCalledOnce()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    try {
+      const t0 = Date.now()
+      const pending = run(ai, f, req(), meta({ decision: 'shell-safety' }, 1900))
+      await vi.advanceTimersByTimeAsync(700)
+      const { response, trace } = await pending
+      expect(trace.fallbackReason).toBe('timeout')
+      expect(response.servedBy).toBe('jev')
+      expect(Date.now() - t0).toBe(700)
+      expect(f).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
   it('no time for clef at all -> Jev directly', async () => {
     const { ai, calls } = fakeAi(() => clefOut(confident))
