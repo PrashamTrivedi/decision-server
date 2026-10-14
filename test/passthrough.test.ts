@@ -5,7 +5,7 @@ import { safeEqual } from '../src/auth'
 
 const body = (extra: object = {}) => JSON.stringify({ model: 'jev-latest', state: { command: 'ls' }, questions: noulQ, ...extra })
 
-describe('spec 01 passthrough', () => {
+describe('spec 01 passthrough (forced jev)', () => {
   it('/health is public', async () => {
     const res = await createApp().request('/health', {}, makeEnv())
     expect(res.status).toBe(200)
@@ -27,12 +27,12 @@ describe('spec 01 passthrough', () => {
   it('proxies to Jev with jev-latest and tags response', async () => {
     const fetchMock = vi.fn(async () => jevOk(noulAnswer))
     const app = createApp({ deps: { fetch: fetchMock as any } })
-    const res = await app.request('/v1/systemone', { method: 'POST', headers: auth, body: body({ model: 'flash' }) }, makeEnv())
+    const res = await app.request('/v1/systemone', { method: 'POST', headers: auth, body: body({ model: 'jev' }) }, makeEnv())
     expect(res.status).toBe(200)
     const j: any = await res.json()
     expect(j.answers).toEqual(noulAnswer)
     expect(j.servedBy).toBe('jev')
-    expect(j.routeReason).toBe('passthrough')
+    expect(j.routeReason).toBe('forced:jev')
     expect(j.neurons).toBe(0)
     expect(j.usage.input_tokens).toBe(10)
     expect(typeof j.ms).toBe('number')

@@ -27,8 +27,8 @@ export function createApp(opts: AppOptions = {}) {
     const parsed = requestSchema.safeParse(json)
     if (!parsed.success) return c.json({ error: 'invalid request', issues: parsed.error.issues }, 400)
     try {
-      const res = await decide(c.env, parsed.data, meta, opts.deps)
-      return c.json(res)
+      const out = await decide(c.env, parsed.data, meta, opts.deps)
+      return c.json(out.response)
     } catch (err) {
       if (err instanceof DecisionError) return c.json({ error: err.message }, err.status)
       throw err
