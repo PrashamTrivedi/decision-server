@@ -1,10 +1,11 @@
 import { DatabaseSync } from 'node:sqlite'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 
 /** Minimal D1 fake over node:sqlite running the real migration. */
 export function makeD1(): D1Database & { raw: DatabaseSync } {
   const db = new DatabaseSync(':memory:')
-  db.exec(readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'))
+  const dir = new URL('../migrations/', import.meta.url)
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) db.exec(readFileSync(new URL(f, dir), 'utf8'))
   const stmt = (sql: string, args: unknown[] = []) => ({
     bind: (...a: unknown[]) => stmt(sql, a),
     run: async () => {
