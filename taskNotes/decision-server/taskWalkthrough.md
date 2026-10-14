@@ -6,19 +6,19 @@ Backend only. Every step is a shell command. `$DECISIONS_URL` is `https://decisi
 
 ```bash
 cd /root/Code/decision-server
-npm install                                  # syncs package-lock with cf@1.0.0-beta.5 (currently stale)
-npm run typecheck                            # cf workers types && tsc
-npx vitest run                               # expect: Tests 121 passed
+bun install
+bun run typecheck                            # cf workers types && tsc
+bun run test:run                             # expect: Tests 122 passed
 
 cf auth login                                # if not already logged in
 cf d1 create --name decisions-db             # copy the returned id into cloudflare.config.ts (DB binding)
 export DECISIONS_DB_ID=<that id>
-npm run db:migrate                           # applies migrations/0001_init.sql (calls, shadow_pairs)
+bun run db:migrate                           # applies migrations/0001_init.sql (calls, shadow_pairs)
 
 # cf has no interactive prompt for secrets (checked with --help). Pass env vars so the literal value stays out of shell history.
 cf workers secrets update DECISIONS_TOKEN  --worker decision-server --text "$DECISIONS_TOKEN"
 cf workers secrets update TYPESAFE_API_KEY --worker decision-server --text "$TYPESAFE_API_KEY"
-npm run deploy                               # cf deploy, custom domain decisions.prashamhtrivedi.app
+bun run deploy                               # cf deploy, custom domain decisions.prashamhtrivedi.app
 ```
 
 The `AI_GATEWAY_ID` var is already set to `default`, which is shared with pi and its spend rules. The gateway itself needs no setup.

@@ -32,23 +32,23 @@ Any Clef error, timeout, or incomplete answer falls back to Jev within the reque
 Uses the Cloudflare `cf` CLI (`cloudflare.config.ts`).
 
 ```bash
-npm install
+bun install
 cp .dev.vars.example .dev.vars            # local dev secrets
-npm run typecheck                         # cf workers types && tsc
-npm run test:run
+bun run typecheck                         # cf workers types && tsc
+bun run test:run                          # vitest (not `bun test`, which is bun's own runner)
 
 cf d1 create --name decisions-db          # put the returned id in cloudflare.config.ts (DB binding)
 export DECISIONS_DB_ID=<that id>
-npm run db:migrate                        # cf d1 migrations apply "$DECISIONS_DB_ID"
+bun run db:migrate                        # cf d1 migrations apply "$DECISIONS_DB_ID"
 
 cf workers secrets update DECISIONS_TOKEN  --worker decision-server --text "$DECISIONS_TOKEN"
 cf workers secrets update TYPESAFE_API_KEY --worker decision-server --text "$TYPESAFE_API_KEY"
-npm run deploy                            # cf deploy; serves decisions.prashamhtrivedi.app
+bun run deploy                            # cf deploy; serves decisions.prashamhtrivedi.app
 ```
 
 Config (`cloudflare.config.ts`): `AI_GATEWAY_ID` (default `default`, every Clef call goes through that AI Gateway, so its spend-limit rules are the budget), `SHADOW` (`on` sends each free-served call to Jev too and stores both answers), `RETENTION_DAYS` (30; a daily cron purges older rows). `AMBIGUITY_BAND` (e.g. `0.3,0.85`) can be added as a text binding to tune escalation.
 
-Local dev: `npm run dev` (`cf dev`), `npm run db:migrate:local`.
+Local dev: `bun run dev` (`cf dev`), `bun run db:migrate:local`.
 
 ## Use it
 
@@ -73,7 +73,7 @@ Reads logged calls locally from the harness `jev.db`, posts them with `X-Replay:
 
 ## Rollback
 
-Redeploy the previous commit (`git checkout <sha> && npm run deploy`), or create a deployment of an older Worker version with `cf workers deployments create`. For the harness side, remove `endpoint` from `~/.jev-harness/config.json`.
+Redeploy the previous commit (`git checkout <sha> && bun run deploy`), or create a deployment of an older Worker version with `cf workers deployments create`. For the harness side, remove `endpoint` from `~/.jev-harness/config.json`.
 
 ## License
 

@@ -93,7 +93,7 @@ None (no UI in v1).
 9. The replay script runs about 1,000 ledger calls and reports per-decision agreement at the harness thresholds.
 10. jev-harness with no `endpoint` set sends byte-identical requests to Jev, apart from the added `X-*` headers. With `endpoint` set, it uses the decision server.
 11. The repo contains no secrets. It has `.dev.vars.example` and a README with setup steps, and `docs/agent-setup-prompt.md` passes against the live deployment.
-12. `npm run type-check` and `npm run test:run` are green.
+12. `bun run typecheck` and `bun run test:run` are green.
 
 ## Validation
 

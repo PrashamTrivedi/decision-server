@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "Jev-compatible decision endpoint: free Workers AI Clef first, Jev fallback. REST + remote MCP.",
   "main": "src/index.ts",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "private": true,
   "scripts": {
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260929.1",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "3.2.7",
     "cf": "1.0.0-beta.5",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
