@@ -1,6 +1,6 @@
 import { bindings, defineConfig, triggers } from "cf/config";
 
-export default defineConfig({
+export default defineConfig(({ isPreview }) => ({
   worker: {
     name: "decision-server",
     compatibilityDate: "2026-10-01",
@@ -9,8 +9,11 @@ export default defineConfig({
     observability: { enabled: true },
     // Preview URLs for non-main branches (Workers Builds Previews).
     previewUrls: true,
-    domains: ["decisions.prashamhtrivedi.app"],
-    triggers: [triggers.scheduled({ schedule: "0 3 * * *" })],
+    // Previews reject `domains`; they also skip the purge cron so only production runs it.
+    ...(isPreview ? {} : {
+      domains: ["decisions.prashamhtrivedi.app"],
+      triggers: [triggers.scheduled({ schedule: "0 3 * * *" })],
+    }),
     env: {
       AI: bindings.ai(),
       DB: bindings.d1({ name: "decisions-db", id: "4e152711-4afd-4482-868c-b98df3e6ef35" }),
@@ -21,4 +24,4 @@ export default defineConfig({
       TYPESAFE_API_KEY: bindings.secret(),
     },
   },
-});
+}));
