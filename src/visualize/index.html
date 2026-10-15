@@ -9,50 +9,72 @@
 <style>/*STYLE*/</style>
 </head>
 <body>
-<header>
-  <h1>Decision server</h1>
-  <span id="status" class="muted">idle</span>
-  <span class="spacer"></span>
-  <label class="muted">Window
-    <select id="days"><option value="1">24h</option><option value="7">7d</option><option value="30">30d</option><option value="90">90d</option></select>
-  </label>
-  <label class="muted"><input type="checkbox" id="live" checked> Live</label>
+<header class="top">
+  <div class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span><h1>Decision server</h1></div>
+  <div class="spacer"></div>
+  <div class="controls">
+    <div class="seg" id="days" role="group" aria-label="Time window">
+      <button type="button" data-days="1" aria-pressed="false">24h</button>
+      <button type="button" data-days="7" aria-pressed="true">7d</button>
+      <button type="button" data-days="30" aria-pressed="false">30d</button>
+      <button type="button" data-days="90" aria-pressed="false">90d</button>
+    </div>
+    <label class="live" title="Refresh every 5 seconds">
+      <input type="checkbox" id="live" checked>
+      <span class="switch" aria-hidden="true"></span>
+      <span class="live-text">Live</span>
+    </label>
+    <div class="chip" id="chip" data-state="busy" role="status" aria-live="polite"><i class="dot" aria-hidden="true"></i><span id="status">connecting</span></div>
+  </div>
 </header>
 
 <main id="app">
-  <section class="grid kpis" id="kpis"></section>
-  <section class="grid two">
-    <div class="card"><h2>Routing mix over time</h2><div id="mix"></div><div id="mixlegend" class="legend"></div></div>
-    <div class="card"><h2>Budget</h2><div id="budget"></div></div>
+  <div class="banner" id="banner" role="alert" hidden><span id="banner-msg"></span><button type="button" id="banner-act">Retry</button></div>
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+  <div class="collapse" id="budgetwrap"><div class="collapse-in"><div class="card"><div class="card-head"><div><h2>Budget</h2><p class="sub">Free Workers AI neurons today</p></div></div><div id="budget"></div></div></div></div>
+  <section class="split">
+    <div class="card"><div class="card-head"><div><h2>Routing mix</h2><p class="sub">Successful calls per bucket, by serving tier. Click a bar to filter the feed.</p></div><div id="mixlegend" class="legend"></div></div><div id="mix" class="chart"></div></div>
+    <div class="card"><div class="card-head"><div><h2>Route reasons</h2><p class="sub">Calls per decision, by how they were routed. Click a row to filter the feed.</p></div><div id="routelegend" class="legend"></div></div><div id="routes"></div></div>
   </section>
-  <section class="grid two">
-    <div class="card"><h2>Fallbacks by reason</h2><div id="fallbacks"></div></div>
-    <div class="card"><h2>Latency p50 / p90 per tier</h2><div id="latency"></div></div>
-  </section>
-  <section class="grid two">
-    <div class="card"><h2>Shadow agreement per decision</h2><div id="shadow"></div></div>
-    <div class="card"><h2>Route reasons</h2><div id="routes"></div></div>
-  </section>
-  <section class="card">
-    <h2>Call feed</h2>
-    <div class="filters">
-      <select id="f-decision"><option value="">decision: any</option></select>
-      <select id="f-served"><option value="">servedBy: any</option><option>flash</option><option>clef</option><option>omni</option><option>jev</option></select>
-      <select id="f-fallback"><option value="">fallback: any</option></select>
-      <select id="f-status"><option value="">status: any</option><option>ok</option><option>error</option></select>
+  <section class="pair">
+    <div class="col">
+      <div class="card"><div class="card-head"><div><h2>Latency</h2><p class="sub" id="lat-sub">p50 and p90 per tier, in milliseconds</p></div></div><div id="latency" class="chart"></div><div class="lat-key" id="lat-key" aria-hidden="true"><span><i class="kd"></i>p50</span><span><i class="kr"></i>p50 to p90</span><span><i class="ks"></i>loaded call</span></div></div>
     </div>
-    <div class="tablewrap"><table id="feed"><thead><tr><th>time</th><th>decision</th><th>served</th><th>ms</th><th>status</th><th>fallback / route</th></tr></thead><tbody></tbody></table></div>
-    <button id="more" type="button">Load older</button>
+    <div class="col">
+      <div class="card"><div class="card-head"><div><h2>Shadow agreement</h2><p class="sub">Free answer matches Jev, per decision. Click a row to filter.</p></div></div><div id="shadow"></div></div>
+      <div class="card"><div class="card-head"><div><h2>Fallbacks</h2><p class="sub">Why calls left the free tiers. Click a row to filter.</p></div></div><div id="fallbacks"></div></div>
+    </div>
+  </section>
+  <section class="card feed-card" id="feedcard">
+    <div class="card-head">
+      <div><h2>Call feed</h2><p class="sub" id="feedcount">Loading calls</p></div>
+      <div class="filters">
+        <select id="f-decision" aria-label="Decision"><option value="">decision: any</option></select>
+        <select id="f-served" aria-label="Served by"><option value="">servedBy: any</option><option>flash</option><option>clef</option><option>omni</option><option>jev</option></select>
+        <select id="f-fallback" aria-label="Fallback reason"><option value="">fallback: any</option></select>
+        <select id="f-status" aria-label="Status"><option value="">status: any</option><option>ok</option><option>error</option></select>
+      </div>
+    </div>
+    <div class="chips" id="chips" hidden></div>
+    <div class="tablewrap"><table id="feed"><thead><tr><th>Time</th><th>Decision</th><th>Served</th><th class="num">ms</th><th>Status</th><th>Fallback / route</th></tr></thead><tbody></tbody></table></div>
+    <div class="feed-foot"><button id="more" type="button">Load older</button></div>
   </section>
 </main>
 
-<aside id="drawer" hidden>
-  <div class="drawerhead"><strong id="d-title">Call</strong><button id="d-close" type="button">Close</button></div>
-  <dl id="d-meta"></dl>
-  <h3>state</h3><pre id="d-state"></pre>
-  <h3>questions</h3><pre id="d-questions"></pre>
-  <h3>answers</h3><pre id="d-answers"></pre>
+<div id="scrim" hidden></div>
+<aside id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" hidden>
+  <div class="drawerhead">
+    <div class="dh-text"><strong id="d-title">Call</strong><span id="d-sub" class="mono muted"></span></div>
+    <button id="d-close" type="button" class="ghost" aria-label="Close details">Close <kbd>Esc</kbd></button>
+  </div>
+  <div class="drawerbody">
+    <div id="d-chips"></div>
+    <details class="metabox" open><summary>Metadata</summary><dl id="d-meta"></dl></details>
+    <section class="payload" id="sec-decisions"><div class="ph"><h3>Decisions</h3><div class="ph-r"><div class="seg sm" data-sec="decisions" role="group" aria-label="Decisions view"><button type="button" data-mode="visual" aria-pressed="true">Visual</button><button type="button" data-mode="json" aria-pressed="false">JSON</button></div><button type="button" class="ghost copy" data-sec="decisions">Copy JSON</button></div></div><div id="d-decisions" class="pbody"></div></section>
+    <section class="payload" id="sec-state"><div class="ph"><h3>State</h3><div class="ph-r"><div class="seg sm" data-sec="state" role="group" aria-label="State view"><button type="button" data-mode="visual" aria-pressed="true">Visual</button><button type="button" data-mode="json" aria-pressed="false">JSON</button></div><button type="button" class="ghost copy" data-sec="state">Copy JSON</button></div></div><div id="d-state" class="pbody"></div></section>
+  </div>
 </aside>
+<div id="tip" role="tooltip" hidden></div>
 <script>/*SCRIPT*/</script>
 </body>
 </html>
