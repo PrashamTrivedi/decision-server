@@ -214,7 +214,7 @@ export async function timelineSnapshot(db: D1Database, days: number, now = Date.
   const rows = (
     await db
       .prepare(
-        `SELECT (ts / ?) * ? AS t, COALESCE(served_by, 'unknown') AS tier, COUNT(*) AS n
+        `SELECT CAST(ts / ? AS INTEGER) * ? AS t, COALESCE(served_by, 'unknown') AS tier, COUNT(*) AS n
            FROM calls WHERE ts >= ? AND replay = 0 AND status = 'ok' GROUP BY t, tier ORDER BY t`,
       )
       .bind(bucketMs, bucketMs, since)
